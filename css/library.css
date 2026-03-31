@@ -1,0 +1,115 @@
+/* ── library.css — Library grid, drop zone, book cards ── */
+
+#lib-inner {
+  flex: 1;
+  overflow-y: auto;
+  padding: 32px 40px;
+}
+
+#drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: 10px;
+  padding: 44px;
+  text-align: center;
+  cursor: pointer;
+  transition: all .2s;
+  margin-bottom: 32px;
+  background: var(--surface);
+}
+#drop-zone:hover, #drop-zone.over {
+  border-color: var(--accent);
+  background: var(--surface2);
+}
+#drop-zone p    { color: var(--muted); font-size: 14px; line-height: 1.8; }
+#drop-zone span { color: var(--accent); }
+#drop-zone span:hover { text-decoration: underline; }
+
+#file-input { display: none; }
+
+.lib-head {
+  font-size: 10px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 18px;
+}
+
+#book-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 20px;
+}
+
+/* ── Book card ── */
+.bcard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all .18s;
+  position: relative;
+}
+.bcard:hover { border-color: var(--accent); transform: translateY(-2px); }
+
+.bcard img {
+  width: 100%;
+  aspect-ratio: 2/3;
+  object-fit: cover;
+  display: block;
+}
+.bcard-ph {
+  width: 100%;
+  aspect-ratio: 2/3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface2);
+  font-size: 38px;
+}
+
+.bcard-prog     { height: 2px; background: var(--border); }
+.bcard-prog div { height: 100%; background: var(--accent); }
+
+.bcard-info   { padding: 9px 11px 11px; }
+.bcard-title  {
+  font-size: 12px;
+  color: var(--text);
+  margin-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bcard-author {
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bcard-rm {
+  position: absolute;
+  top: 5px; right: 5px;
+  width: 20px; height: 20px;
+  background: rgba(0,0,0,.72);
+  border: none;
+  border-radius: 50%;
+  color: #777;
+  font-size: 12px;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+.bcard:hover .bcard-rm { display: flex; }
+.bcard-rm:hover { color: var(--danger); }
+
+#empty {
+  text-align: center;
+  padding: 60px 0;
+  color: var(--muted);
+  font-size: 14px;
+  display: none;
+}
+#empty.on { display: block; }

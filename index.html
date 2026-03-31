@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shelf — EPUB Reader</title>
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/library.css">
+  <link rel="stylesheet" href="css/reader.css">
+
+  <!-- epub.js dependencies -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════
+     TOPBAR
+     ══════════════════════════════════════════ -->
+<div id="topbar">
+  <span class="logo" id="logo-btn" onclick="goLibrary()" title="Back to library">SHELF</span>
+  <!-- these topbar buttons are hidden in reader mode; controls live in the reader toolbar -->
+  <button class="tbtn" id="back-btn"   onclick="goLibrary()">← Library</button>
+  <button class="tbtn" id="toc-btn"    onclick="toggleSb('toc')">Contents</button>
+  <button class="tbtn" id="bm-btn"     onclick="toggleSb('bm')">Bookmarks</button>
+  <button class="tbtn" id="layout-btn" onclick="toggleLayout()">Single page</button>
+  <button class="tbtn" id="add-btn"    onclick="document.getElementById('file-input').click()">+ Add Book</button>
+</div>
+
+<input type="file" id="file-input" accept=".epub" multiple>
+
+<!-- ══════════════════════════════════════════
+     LIBRARY VIEW
+     ══════════════════════════════════════════ -->
+<div id="view-library" class="on">
+  <div id="lib-inner">
+
+    <div id="drop-zone" onclick="document.getElementById('file-input').click()">
+      <div style="font-size:32px; margin-bottom:10px">📚</div>
+      <p>Drop EPUB files here, or <span>browse to add</span></p>
+      <p style="font-size:11px; margin-top:5px; color:#444">
+        Books stay in your browser — nothing is uploaded
+      </p>
+    </div>
+
+    <div class="lib-head">Your Library</div>
+    <div id="book-grid"></div>
+    <div id="empty">No books yet. Add an EPUB above to get started.</div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     READER VIEW
+     ══════════════════════════════════════════ -->
+<div id="view-reader">
+  <div id="reader-wrap">
+
+    <!-- TOC sidebar (left) -->
+    <div class="sb" id="toc-sb">
+      <div class="sb-head">
+        <span>Contents</span>
+        <button onclick="toggleSb('toc')">×</button>
+      </div>
+      <div class="sb-body" id="toc-list"></div>
+    </div>
+
+    <!-- Main reading area -->
+    <div id="reader-main" style="order:2">
+
+      <!-- Toolbar -->
+      <div id="rtb">
+        <button class="rb"       onclick="prevPage()"       title="Previous page">←</button>
+        <button class="rb"       onclick="nextPage()"       title="Next page">→</button>
+        <button class="rb pill"  onclick="toggleSb('toc')"  title="Table of contents" id="toc-tb-btn">≡</button>
+        <button class="rb pill"  onclick="toggleSb('bm')"   title="Bookmarks"          id="bm-tb-btn">🔖</button>
+
+        <div id="r-title"></div>
+
+        <button class="rb"       onclick="adjFont(-2)"      title="Smaller text">A−</button>
+        <span   id="fs-num">100%</span>
+        <button class="rb"       onclick="adjFont(2)"       title="Larger text">A+</button>
+
+        <button class="rb pill"  onclick="toggleBm()"       title="Bookmark this page" id="bm-star">☆</button>
+        <button class="rb pill"  onclick="toggleLayout()"   title="Single / double page"
+                id="layout-tb-btn" style="font-size:12px; letter-spacing:.02em;">&#9633; &#9633;</button>
+        <button class="rb pill"  onclick="toggleDisp()"     title="Display settings"   id="disp-btn">☀</button>
+
+        <!-- Display / theme panel -->
+        <div id="disp-panel">
+          <span class="dp-label">Theme</span>
+          <div class="theme-row">
+            <div class="tsw tl on" onclick="setTheme('',  this)" title="Light">Aa</div>
+            <div class="tsw td"    onclick="setTheme('dk',this)" title="Dark">Aa</div>
+            <div class="tsw ts"    onclick="setTheme('sp',this)" title="Sepia">Aa</div>
+          </div>
+
+          <span class="dp-sub">Font</span>
+          <select id="font-sel" onchange="applyTheme()">
+            <option value="Georgia, serif">Georgia</option>
+            <option value="'Palatino Linotype', serif">Palatino</option>
+            <option value="'Book Antiqua', serif">Book Antiqua</option>
+            <option value="'Times New Roman', serif">Times New Roman</option>
+            <option value="'Arial', sans-serif">Arial</option>
+            <option value="'Verdana', sans-serif">Verdana</option>
+          </select>
+
+          <span class="dp-sub">Line spacing</span>
+          <div class="lh-wrap">
+            <input type="range" id="lh-sl" min="1.2" max="2.4" step="0.1" value="1.7"
+              oninput="applyTheme(); document.getElementById('lh-val').textContent = parseFloat(this.value).toFixed(1)">
+            <span id="lh-val">1.7</span>
+          </div>
+        </div>
+      </div><!-- /#rtb -->
+
+      <!-- EPUB stage -->
+      <div id="epub-stage">
+        <button class="nav-arr" id="na-prev" onclick="prevPage()">‹</button>
+        <div id="epub-viewer"></div>
+        <button class="nav-arr" id="na-next" onclick="nextPage()">›</button>
+        <div id="loading">
+          <div class="spin"></div>
+          <div class="spin-txt">Opening book…</div>
+        </div>
+      </div>
+
+      <!-- Footer / progress -->
+      <div id="rfooter">
+        <div id="prog-wrap" onclick="seekClick(event)">
+          <div id="prog-fill" style="width:0%"></div>
+        </div>
+        <div id="prog-pct">0%</div>
+      </div>
+
+    </div><!-- /#reader-main -->
+
+    <!-- Bookmarks sidebar (right) -->
+    <div class="sb" id="bm-sb" style="border-right:none; border-left:1px solid var(--border); order:3">
+      <div class="sb-head">
+        <span>Bookmarks</span>
+        <button onclick="toggleSb('bm')">×</button>
+      </div>
+      <div class="sb-body" id="bm-list"></div>
+    </div>
+
+  </div><!-- /#reader-wrap -->
+</div><!-- /#view-reader -->
+
+<div id="toast"></div>
+
+<!-- Scripts — load order matters: db → library → reader → theme → toc-bookmarks → app -->
+<script src="js/db.js"></script>
+<script src="js/library.js"></script>
+<script src="js/reader.js"></script>
+<script src="js/theme.js"></script>
+<script src="js/toc-bookmarks.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>

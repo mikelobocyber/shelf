@@ -1,0 +1,347 @@
+/* ── reader.css — Reader layout, sidebars, toolbar, epub stage, footer ── */
+
+/* ── READER WRAP ── */
+#reader-wrap {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── SIDEBARS ── */
+.sb {
+  width: 0;
+  overflow: hidden;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  transition: width .22s ease;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+.sb.on { width: var(--sidebar-w); }
+
+.sb-head {
+  padding: 13px 18px;
+  font-size: 10px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.sb-head button {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 15px;
+}
+.sb-head button:hover { color: var(--accent); }
+
+.sb-body { overflow-y: auto; flex: 1; padding: 6px 0; }
+
+/* TOC rows */
+.toc-row {
+  padding: 7px 18px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .12s;
+  border-left: 2px solid transparent;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.toc-row:hover { color: var(--text); background: var(--surface2); }
+.toc-row.on    { color: var(--accent); border-left-color: var(--accent); }
+.toc-row.d2    { padding-left: 28px; font-size: 11px; }
+.toc-row.d3    { padding-left: 38px; font-size: 11px; }
+
+/* Bookmark rows */
+.bm-row {
+  padding: 10px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: background .12s;
+  position: relative;
+}
+.bm-row:hover { background: var(--surface2); }
+.bm-row-label {
+  font-size: 12px;
+  color: var(--text);
+  margin-bottom: 3px;
+  padding-right: 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bm-row-sub   { font-size: 10px; color: var(--muted); }
+.bm-row-del {
+  position: absolute;
+  top: 10px; right: 12px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+}
+.bm-row-del:hover { color: var(--danger); }
+.bm-empty {
+  padding: 22px 16px;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.7;
+}
+
+/* ── READER MAIN ── */
+#reader-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #f6f1e9;
+  position: relative;
+}
+#reader-main.dk { background: #18140f; }
+#reader-main.sp { background: #f0e6cf; }
+
+/* ── READER TOOLBAR ── */
+#rtb {
+  height: 42px;
+  flex-shrink: 0;
+  z-index: 10;
+  background: rgba(246,241,233,.96);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid rgba(0,0,0,.07);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 5px;
+}
+#reader-main.dk #rtb { background: rgba(24,20,15,.96);   border-color: rgba(255,255,255,.06); }
+#reader-main.sp #rtb { background: rgba(240,230,207,.96); border-color: rgba(0,0,0,.06); }
+
+/* Reader buttons */
+.rb {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 7px;
+  border-radius: 4px;
+  font-size: 15px;
+  color: #28200f;
+  transition: background .12s;
+  line-height: 1;
+}
+#reader-main.dk .rb { color: #cfc9bc; }
+#reader-main.sp .rb { color: #3b2c14; }
+.rb:hover              { background: rgba(0,0,0,.07); }
+#reader-main.dk .rb:hover { background: rgba(255,255,255,.07); }
+
+.rb.pill {
+  font-size: 12px;
+  border: 1px solid rgba(0,0,0,.13);
+  padding: 3px 8px;
+}
+#reader-main.dk .rb.pill { border-color: rgba(255,255,255,.13); }
+.rb.pill.on {
+  background: rgba(201,170,112,.15);
+  border-color: var(--accent);
+  color: #7a4510;
+}
+#reader-main.dk .rb.pill.on { color: var(--accent); }
+
+#r-title {
+  flex: 1;
+  text-align: center;
+  font-size: 12px;
+  color: rgba(0,0,0,.3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 6px;
+}
+#reader-main.dk #r-title { color: rgba(255,255,255,.2); }
+#reader-main.sp #r-title { color: rgba(60,40,10,.3); }
+
+#fs-num { font-size: 11px; color: #bbb; min-width: 30px; text-align: center; }
+
+#bm-star { font-size: 17px; color: rgba(0,0,0,.22); }
+#bm-star.on { color: var(--bookmark) !important; }
+#reader-main.dk #bm-star { color: rgba(255,255,255,.2); }
+
+/* ── DISPLAY PANEL ── */
+#disp-panel {
+  position: absolute;
+  top: 48px; right: 12px;
+  z-index: 100;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 14px 16px;
+  width: 180px;
+  box-shadow: 0 8px 28px rgba(0,0,0,.55);
+  display: none;
+}
+#disp-panel.on { display: block; }
+
+.dp-label {
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+  display: block;
+}
+.theme-row { display: flex; gap: 7px; margin-bottom: 12px; }
+.tsw {
+  flex: 1;
+  height: 26px;
+  border-radius: 4px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color .12s;
+}
+.tsw:hover, .tsw.on { border-color: var(--accent); }
+.tsw.tl { background: #f6f1e9; color: #28200f; }
+.tsw.td { background: #18140f; color: #cfc9bc; }
+.tsw.ts { background: #f0e6cf; color: #3b2c14; }
+
+.dp-sub {
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+  display: block;
+}
+#font-sel {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 5px 7px;
+  border-radius: 4px;
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+.lh-wrap           { display: flex; align-items: center; gap: 6px; }
+.lh-wrap input     { flex: 1; }
+.lh-wrap span      { font-size: 11px; color: var(--muted); min-width: 24px; }
+
+/* ── EPUB STAGE ── */
+#epub-stage {
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+#epub-viewer { flex-shrink: 0; position: relative; }
+
+/* Spine divider in double-page mode */
+#epub-stage.double::after {
+  content: '';
+  position: absolute;
+  top: 10%; bottom: 10%;
+  left: 50%; width: 1px;
+  background: rgba(0,0,0,.08);
+  pointer-events: none;
+  z-index: 4;
+}
+#reader-main.dk #epub-stage.double::after { background: rgba(255,255,255,.06); }
+#reader-main.sp #epub-stage.double::after { background: rgba(80,50,10,.1); }
+
+/* Nav arrows */
+.nav-arr {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  z-index: 5;
+  font-size: 30px;
+  color: rgba(0,0,0,.16);
+  padding: 10px;
+  border-radius: 50%;
+  transition: all .15s;
+}
+.nav-arr:hover                    { color: rgba(0,0,0,.4);         background: rgba(0,0,0,.05); }
+#reader-main.dk .nav-arr          { color: rgba(255,255,255,.13); }
+#reader-main.dk .nav-arr:hover    { color: rgba(255,255,255,.38);  background: rgba(255,255,255,.05); }
+#na-prev { left: 4px; }
+#na-next { right: 4px; }
+
+/* Loading overlay */
+#loading {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+.spin {
+  width: 24px; height: 24px;
+  border: 2px solid rgba(0,0,0,.1);
+  border-top-color: var(--accent-dim);
+  border-radius: 50%;
+  animation: spin-anim .75s linear infinite;
+}
+#reader-main.dk .spin { border-color: rgba(255,255,255,.08); border-top-color: var(--accent); }
+@keyframes spin-anim { to { transform: rotate(360deg); } }
+.spin-txt { font-size: 12px; color: #aaa; }
+
+/* ── FOOTER / PROGRESS BAR ── */
+#rfooter {
+  height: 33px;
+  flex-shrink: 0;
+  background: rgba(246,241,233,.88);
+  border-top: 1px solid rgba(0,0,0,.07);
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  gap: 10px;
+  font-size: 11px;
+  color: #c0bbaf;
+}
+#reader-main.dk #rfooter { background: rgba(24,20,15,.88); border-color: rgba(255,255,255,.05); color: #555; }
+#reader-main.sp #rfooter { background: rgba(240,230,207,.88); }
+
+#prog-wrap {
+  flex: 1;
+  height: 4px;
+  background: rgba(0,0,0,.12);
+  border-radius: 2px;
+  cursor: pointer;
+  position: relative;
+  /* expanded hit area */
+  padding: 8px 0;
+  margin: -8px 0;
+}
+#reader-main.dk #prog-wrap { background: rgba(255,255,255,.1); }
+
+#prog-fill {
+  height: 4px;
+  position: absolute;
+  top: 8px; left: 0;
+  background: var(--accent-dim);
+  border-radius: 2px;
+  transition: width .25s;
+  pointer-events: none;
+}
+#reader-main.dk #prog-fill { background: var(--accent); }
+
+#prog-pct { min-width: 30px; text-align: right; }

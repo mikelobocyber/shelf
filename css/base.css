@@ -1,0 +1,100 @@
+/* ── base.css — CSS variables, reset, body, topbar, shared utilities ── */
+
+:root {
+  --bg: #111010;
+  --surface: #1c1b1a;
+  --surface2: #252422;
+  --border: #313030;
+  --text: #e5e0d5;
+  --muted: #726e69;
+  --accent: #c9aa70;
+  --accent-dim: #7a5f32;
+  --danger: #c46b6b;
+  --bookmark: #d4845a;
+  --sidebar-w: 268px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: Georgia, serif;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── TOPBAR ── */
+#topbar {
+  height: 50px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 18px;
+  gap: 10px;
+  flex-shrink: 0;
+  z-index: 200;
+}
+
+.logo {
+  font-size: 17px;
+  letter-spacing: .1em;
+  color: var(--accent);
+  margin-right: auto;
+  transition: opacity .15s;
+  cursor: pointer;
+}
+.logo:hover { opacity: .7; }
+
+.tbtn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 5px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: Georgia, serif;
+  font-size: 12px;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.tbtn:hover { border-color: var(--accent); color: var(--accent); }
+.tbtn.on    { border-color: var(--accent); color: var(--accent); background: rgba(201,170,112,.08); }
+
+#back-btn, #toc-btn, #bm-btn, #layout-btn { display: none; }
+
+/* ── VIEWS ── */
+#view-library, #view-reader {
+  flex: 1;
+  overflow: hidden;
+  display: none;
+  flex-direction: column;
+}
+#view-library.on, #view-reader.on { display: flex; }
+
+/* ── TOAST ── */
+#toast {
+  position: fixed;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%) translateY(10px);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 16px;
+  border-radius: 5px;
+  font-size: 12px;
+  opacity: 0;
+  transition: all .22s;
+  pointer-events: none;
+  z-index: 9999;
+}
+#toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ── SCROLLBARS ── */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
