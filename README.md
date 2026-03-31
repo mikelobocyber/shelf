@@ -253,3 +253,18 @@ Both are loaded from public CDNs in `index.html`. An internet connection is requ
 | `bookmarks` | `bookId` | Array of `{ cfi, label, pct, addedAt }` objects per book |
 
 To clear all data: open DevTools → Application → IndexedDB → `shelf_v4` → Delete database.
+
+## What I learned
+- Working with IndexedDB for persistent storage
+- Handling EPUB rendering with epub.js
+- Managing state across multiple UI views
+
+## Challenges
+- Styling inside epub.js iframes was tricky due to isolation
+- Getting double-page layout working correctly
+- Syncing reading position and bookmarks reliably
+
+## Future improvements
+- Search inside books
+- Sync across devices
+- Better mobile responsiveness
