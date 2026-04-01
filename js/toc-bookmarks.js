@@ -1,4 +1,4 @@
-// ── toc-bookmarks.js — Table of contents + bookmarks panel logic ──
+// ── toc-bookmarks.js — Table of contents + bookmarks (epub & pdf) ──
 
 // ── TABLE OF CONTENTS ─────────────────────────────────────────────
 
@@ -19,7 +19,6 @@ function buildTOC(items, depth = 1) {
   });
 }
 
-// Called on every page turn to highlight the current chapter in the TOC
 function updateTOCActive(loc) {
   if (!loc || !loc.start || !loc.start.href) return;
   const href = loc.start.href.split('#')[0];
@@ -36,26 +35,40 @@ async function getBms() {
   return (rec && rec.list) ? rec.list : [];
 }
 
+// Returns the current location key — CFI for epub, pseudo-CFI for pdf
+function _curLocKey() {
+  if (pdfDoc) return getPdfPseudoCFI();
+  return curCFI;
+}
+
 async function checkBmStar() {
-  if (!curId || !curCFI) return;
+  if (!curId) return;
+  const key = _curLocKey();
+  if (!key) return;
   const bms = await getBms();
-  const hit = bms.some(b => b.cfi === curCFI);
+  const hit = bms.some(b => b.cfi === key);
   const btn = document.getElementById('bm-star');
   btn.textContent = hit ? '★' : '☆';
   btn.classList.toggle('on', hit);
 }
 
 async function toggleBm() {
-  if (!curId || !curCFI) { toast('Open a book first'); return; }
-  let bms      = await getBms();
-  const idx    = bms.findIndex(b => b.cfi === curCFI);
-  const pct    = parseInt(document.getElementById('prog-pct').textContent) || 0;
+  if (!curId) { toast('Open a book first'); return; }
+  const key = _curLocKey();
+  if (!key)  { toast('No location to bookmark'); return; }
+
+  let bms   = await getBms();
+  const idx = bms.findIndex(b => b.cfi === key);
+  const pct = parseInt(document.getElementById('prog-pct').textContent) || 0;
+  const label = pdfDoc
+    ? 'Page ' + pdfPage + ' of ' + pdfTotal
+    : 'Page ~' + pct + '%';
 
   if (idx >= 0) {
     bms.splice(idx, 1);
     toast('Bookmark removed');
   } else {
-    bms.push({ cfi: curCFI, label: 'Page ~' + pct + '%', pct, addedAt: Date.now() });
+    bms.push({ cfi: key, label, pct, addedAt: Date.now() });
     toast('Bookmarked ★');
   }
   await dbPut('bookmarks', { bookId: curId, list: bms });
@@ -85,7 +98,15 @@ async function renderBmList() {
       `<div class="bm-row-label">${esc(bm.label)}</div>` +
       `<div class="bm-row-sub">${bm.pct}% through book</div>`;
     el.querySelector('.bm-row-del').onclick = e => { e.stopPropagation(); deleteBm(bm.cfi); };
-    el.onclick = () => { if (curRend) curRend.display(bm.cfi); };
+    el.onclick = () => {
+      // PDF pseudo-CFI looks like 'pdf-page-42'
+      if (bm.cfi && bm.cfi.startsWith('pdf-page-')) {
+        const page = parseInt(bm.cfi.replace('pdf-page-', ''));
+        if (!isNaN(page)) _renderPdfPage(page);
+      } else if (curRend) {
+        curRend.display(bm.cfi);
+      }
+    };
     list.appendChild(el);
   });
 }

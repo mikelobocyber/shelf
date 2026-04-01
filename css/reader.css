@@ -1,347 +1,894 @@
-/* ── reader.css — Reader layout, sidebars, toolbar, epub stage, footer ── */
+/* ============================================================
+   reader.css
+   Styles for the reader view — everything visible while reading.
 
-/* ── READER WRAP ── */
+   Covers:
+     1.  Reader wrap            (outer flex row holding sidebars + main area)
+     2.  Sidebars               (TOC + bookmarks, slide in/out)
+     3.  TOC rows               (chapter list inside TOC sidebar)
+     4.  Bookmark rows          (saved positions inside bookmarks sidebar)
+     5.  Reader main            (the central reading column)
+     6.  Reader toolbar         (controls bar above the book content)
+     7.  Toolbar buttons        (base .rb and pill variant)
+     8.  Book title display     (centred title in toolbar)
+     9.  Bookmark star button   (☆ / ★ toggle in toolbar)
+     10. PDF page controls      (page number input + zoom, PDF only)
+     11. Display / theme panel  (floating settings dropdown)
+     12. Theme swatches         (Light / Dark / Sepia colour pickers)
+     13. EPUB stage             (container epub.js renders the book into)
+     14. Double-page spine line (visual divider in double-page mode)
+     15. PDF stage              (container PDF.js renders canvases into)
+     16. Navigation arrows      (‹ › side buttons, shared by epub + pdf)
+     17. Loading overlay        (spinner shown while book opens)
+     18. Footer / progress bar  (bottom strip with progress fill + percentage)
+
+   Depends on base.css for all --variable definitions.
+   Theme variations (dark / sepia) are triggered by class names
+   on #reader-main: class "" = light, "dk" = dark, "sp" = sepia.
+   ============================================================ */
+
+
+/* ============================================================
+   1. READER WRAP
+   ============================================================
+   The outermost container inside #view-reader.
+   It's a flex ROW containing:
+     [toc-sidebar]  [reader-main]  [bookmarks-sidebar]
+
+   flex: 1 fills all available height below the topbar.
+   overflow: hidden prevents any child from overflowing the
+   screen — each child manages its own scrolling internally.
+   ============================================================ */
 #reader-wrap {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
+  display:  flex;    /* horizontal layout: sidebars + main reading area        */
+  flex:     1;       /* fill all height below the topbar                       */
+  overflow: hidden;  /* no body-level scroll — children scroll themselves      */
 }
 
-/* ── SIDEBARS ── */
+
+/* ============================================================
+   2. SIDEBARS  (TOC on the left, Bookmarks on the right)
+   ============================================================
+   Both sidebars use the same .sb class. They start at width: 0
+   (invisible and taking no space) and animate to --sidebar-w
+   (268px) when the .on class is added by toggleSb() in
+   toc-bookmarks.js.
+
+   Key properties:
+     overflow: hidden — at width 0, content is clipped rather
+       than shown (which would break the layout)
+     transition: width .22s ease — smooth slide-in animation
+     flex-shrink: 0 — never compress; always honour the width value
+     flex-direction: column — stack header + scrollable body
+
+   The bookmarks sidebar has an additional inline style in HTML:
+     border-right: none; border-left: 1px solid var(--border)
+   because it sits on the RIGHT side of the reading area.
+   ============================================================ */
 .sb {
-  width: 0;
-  overflow: hidden;
-  background: var(--surface);
-  border-right: 1px solid var(--border);
-  transition: width .22s ease;
-  display: flex;
+  width:          0;                          /* collapsed — takes no space     */
+  overflow:       hidden;                     /* clip content when width is 0   */
+  background:     var(--surface);
+  border-right:   1px solid var(--border);    /* separator from main content    */
+  transition:     width .22s ease;            /* slide open/close animation     */
+  display:        flex;
   flex-direction: column;
-  flex-shrink: 0;
+  flex-shrink:    0;   /* don't compress — respect the explicit width value    */
 }
-.sb.on { width: var(--sidebar-w); }
+/* When .on is added, sidebar slides open to full width */
+.sb.on {
+  width: var(--sidebar-w); /* 268px — defined in base.css :root                */
+}
 
+/* Sidebar header bar: title text + × close button */
 .sb-head {
-  padding: 13px 18px;
-  font-size: 10px;
-  letter-spacing: .14em;
-  text-transform: uppercase;
-  color: var(--muted);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  padding:         13px 18px;
+  font-size:       10px;
+  letter-spacing:  .14em;
+  text-transform:  uppercase;
+  color:           var(--muted);
+  border-bottom:   1px solid var(--border);
+  flex-shrink:     0;     /* header never compresses — always full height      */
+  display:         flex;
+  align-items:     center;
+  justify-content: space-between; /* title left, close button right            */
 }
 .sb-head button {
   background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 15px;
+  border:     none;
+  color:      var(--muted);
+  cursor:     pointer;
+  font-size:  15px;
 }
-.sb-head button:hover { color: var(--accent); }
+.sb-head button:hover {
+  color: var(--accent); /* gold on hover                                        */
+}
 
-.sb-body { overflow-y: auto; flex: 1; padding: 6px 0; }
+/* Scrollable content area inside the sidebar.
+   flex: 1 fills remaining height after the header.
+   overflow-y: auto adds a scrollbar if content is taller than visible area. */
+.sb-body {
+  overflow-y: auto;
+  flex:       1;
+  padding:    6px 0;
+}
 
-/* TOC rows */
+
+/* ============================================================
+   3. TOC ROWS  (chapter list inside the TOC sidebar)
+   ============================================================
+   Each chapter is a .toc-row div. Clicking it jumps to that
+   chapter via curRend.display(href) or _renderPdfPage(n).
+
+   The active chapter is highlighted with class .on — added and
+   removed by updateTOCActive() in toc-bookmarks.js on every
+   page turn.
+
+   border-left: 2px solid transparent is the "track" — it takes
+   up space always so text doesn't shift when the solid border
+   appears on active items.
+
+   Depth classes (.d2, .d3) add left padding for nested chapters
+   (sub-chapters under a main chapter). epub.js provides subitems
+   in the navigation tree which are rendered at increased depth.
+   ============================================================ */
 .toc-row {
-  padding: 7px 18px;
-  font-size: 12px;
-  color: var(--muted);
-  cursor: pointer;
-  transition: all .12s;
-  border-left: 2px solid transparent;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  padding:       7px 18px;
+  font-size:     12px;
+  color:         var(--muted);    /* dimmed — inactive chapters               */
+  cursor:        pointer;
+  transition:    all .12s;
+  border-left:   2px solid transparent; /* invisible but reserves space       */
+  white-space:   nowrap;                /* never wrap chapter titles          */
+  overflow:      hidden;
+  text-overflow: ellipsis;              /* truncate long titles with …        */
 }
-.toc-row:hover { color: var(--text); background: var(--surface2); }
-.toc-row.on    { color: var(--accent); border-left-color: var(--accent); }
-.toc-row.d2    { padding-left: 28px; font-size: 11px; }
-.toc-row.d3    { padding-left: 38px; font-size: 11px; }
+.toc-row:hover {
+  color:      var(--text);       /* brighten on hover                         */
+  background: var(--surface2);   /* subtle highlight background               */
+}
+/* Active chapter — highlighted in gold with a solid left border */
+.toc-row.on {
+  color:             var(--accent);
+  border-left-color: var(--accent); /* gold left accent line                   */
+}
+/* Depth 2 = sub-chapter: indented and slightly smaller text */
+.toc-row.d2 {
+  padding-left: 28px;
+  font-size:    11px;
+}
+/* Depth 3 = sub-sub-chapter: more indented */
+.toc-row.d3 {
+  padding-left: 38px;
+  font-size:    11px;
+}
 
-/* Bookmark rows */
+
+/* ============================================================
+   4. BOOKMARK ROWS  (saved positions list in bookmarks sidebar)
+   ============================================================
+   Each saved bookmark is a .bm-row div. Clicking it jumps to
+   the saved CFI (epub) or page number (pdf) via renderBmList()
+   in toc-bookmarks.js.
+
+   The × delete button is position: absolute — anchored to the
+   top-right of the row. padding-right: 20px on .bm-row-label
+   prevents the label text from sliding under the button.
+   ============================================================ */
 .bm-row {
-  padding: 10px 14px;
-  cursor: pointer;
-  border-bottom: 1px solid var(--border);
-  transition: background .12s;
-  position: relative;
+  padding:        10px 14px;
+  cursor:         pointer;
+  border-bottom:  1px solid var(--border); /* separator between bookmarks      */
+  transition:     background .12s;
+  position:       relative; /* needed for absolute-positioned delete button    */
 }
-.bm-row:hover { background: var(--surface2); }
+.bm-row:hover {
+  background: var(--surface2);
+}
+
+/* Main bookmark label — e.g. "Page ~42%" or "Page 15 of 380" */
 .bm-row-label {
-  font-size: 12px;
-  color: var(--text);
+  font-size:     12px;
+  color:         var(--text);
   margin-bottom: 3px;
-  padding-right: 20px;
-  white-space: nowrap;
-  overflow: hidden;
+  padding-right: 20px; /* prevent text from overlapping the × delete button   */
+  white-space:   nowrap;
+  overflow:      hidden;
   text-overflow: ellipsis;
 }
-.bm-row-sub   { font-size: 10px; color: var(--muted); }
+
+/* Secondary label — the percentage through the book */
+.bm-row-sub {
+  font-size: 10px;
+  color:     var(--muted);
+}
+
+/* The × delete button — positioned top-right of the row */
 .bm-row-del {
-  position: absolute;
-  top: 10px; right: 12px;
+  position:  absolute;
+  top:       10px;
+  right:     12px;
   background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
+  border:    none;
+  color:     var(--muted);
+  cursor:    pointer;
   font-size: 14px;
 }
-.bm-row-del:hover { color: var(--danger); }
+.bm-row-del:hover {
+  color: var(--danger); /* red to reinforce "this deletes something"           */
+}
+
+/* Empty state when no bookmarks exist yet */
 .bm-empty {
-  padding: 22px 16px;
-  font-size: 12px;
-  color: var(--muted);
-  text-align: center;
+  padding:     22px 16px;
+  font-size:   12px;
+  color:       var(--muted);
+  text-align:  center;
   line-height: 1.7;
 }
 
-/* ── READER MAIN ── */
+
+/* ============================================================
+   5. READER MAIN  (the central reading column)
+   ============================================================
+   This div occupies the remaining horizontal space between the
+   two sidebars (flex: 1). It's a flex COLUMN stacking:
+     [reader toolbar]
+     [epub-stage OR pdf-stage]
+     [footer / progress bar]
+
+   overflow: hidden prevents content from escaping — the epub
+   iframe and pdf canvas each manage their own overflow.
+
+   position: relative enables the loading overlay (#loading) to
+   be positioned absolutely inside it.
+
+   Theme classes control background colour:
+     (no class) = light (#f6f1e9 — warm off-white paper)
+     .dk        = dark  (#18140f — near black)
+     .sp        = sepia (#f0e6cf — warm yellow-cream)
+
+   These classes are set by setTheme() in theme.js and also
+   affect many child elements via descendant selectors like:
+     #reader-main.dk #rtb { ... }
+   ============================================================ */
 #reader-main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: #f6f1e9;
-  position: relative;
+  flex:           1;          /* fill all horizontal space between sidebars     */
+  display:        flex;
+  flex-direction: column;     /* toolbar on top, content in middle, footer below */
+  overflow:       hidden;
+  background:     #f6f1e9;    /* default light theme: warm paper white          */
+  position:       relative;   /* enables #loading overlay to be absolute        */
 }
+/* Dark theme background */
 #reader-main.dk { background: #18140f; }
+/* Sepia theme background */
 #reader-main.sp { background: #f0e6cf; }
 
-/* ── READER TOOLBAR ── */
+
+/* ============================================================
+   6. READER TOOLBAR  (#rtb)
+   ============================================================
+   The 42px bar above the book content containing all reader
+   controls. Uses backdrop-filter: blur for a frosted glass look.
+
+   The blur creates a soft translucent effect where the toolbar
+   slightly shows what's scrolling behind it. This only works on
+   Chromium-based browsers; Firefox shows a solid background.
+
+   flex-shrink: 0 ensures the toolbar never collapses.
+   z-index: 10 keeps it above the book content (the epub iframe
+   can sometimes render on top if z-index isn't set here).
+
+   Three theme variants follow — each changes background and border
+   colour to match the current reading theme while preserving the
+   same translucent glass effect.
+   ============================================================ */
 #rtb {
-  height: 42px;
-  flex-shrink: 0;
-  z-index: 10;
-  background: rgba(246,241,233,.96);
-  backdrop-filter: blur(6px);
-  border-bottom: 1px solid rgba(0,0,0,.07);
-  display: flex;
-  align-items: center;
-  padding: 0 12px;
-  gap: 5px;
+  height:          42px;
+  flex-shrink:     0;                           /* never compress              */
+  z-index:         10;                          /* above epub iframe           */
+  background:      rgba(246,241,233,.96);       /* light: paper-tinted glass   */
+  backdrop-filter: blur(6px);                   /* frosted glass blur          */
+  border-bottom:   1px solid rgba(0,0,0,.07);   /* subtle separator            */
+  display:         flex;
+  align-items:     center;
+  padding:         0 12px;
+  gap:             5px;                         /* space between all buttons   */
 }
-#reader-main.dk #rtb { background: rgba(24,20,15,.96);   border-color: rgba(255,255,255,.06); }
-#reader-main.sp #rtb { background: rgba(240,230,207,.96); border-color: rgba(0,0,0,.06); }
+/* Dark theme toolbar */
+#reader-main.dk #rtb {
+  background:    rgba(24,20,15,.96);          /* dark: near-black glass        */
+  border-color:  rgba(255,255,255,.06);       /* very subtle light border      */
+}
+/* Sepia theme toolbar */
+#reader-main.sp #rtb {
+  background:    rgba(240,230,207,.96);       /* sepia: warm cream glass       */
+  border-color:  rgba(0,0,0,.06);
+}
 
-/* Reader buttons */
+
+/* ============================================================
+   7. TOOLBAR BUTTONS  (.rb base + .rb.pill variant)
+   ============================================================
+   .rb is the base class for all buttons in the reader toolbar.
+   Transparent background, no border — just the text/icon.
+
+   .rb.pill adds a subtle border to create a "pill" shape —
+   used for buttons that have an active/toggled state (TOC,
+   bookmarks toggle, bookmark star, layout, display settings).
+
+   .rb.pill.on is the active state — added/removed by toggleSb(),
+   checkBmStar(), and toggleLayout() in their respective JS files.
+
+   Colour variants match each reading theme so buttons look
+   correct whether in light, dark, or sepia mode.
+   ============================================================ */
 .rb {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 4px 7px;
+  background:   none;
+  border:       none;
+  cursor:       pointer;
+  padding:      4px 7px;
   border-radius: 4px;
-  font-size: 15px;
-  color: #28200f;
-  transition: background .12s;
-  line-height: 1;
+  font-size:    15px;
+  color:        #28200f;     /* dark brown — readable on light/sepia background */
+  transition:   background .12s;
+  line-height:  1;           /* prevent extra height from line-height           */
 }
-#reader-main.dk .rb { color: #cfc9bc; }
-#reader-main.sp .rb { color: #3b2c14; }
-.rb:hover              { background: rgba(0,0,0,.07); }
-#reader-main.dk .rb:hover { background: rgba(255,255,255,.07); }
+/* Dark theme buttons */
+#reader-main.dk .rb {
+  color: #cfc9bc; /* warm off-white — readable on dark background              */
+}
+/* Sepia theme buttons */
+#reader-main.sp .rb {
+  color: #3b2c14; /* dark brown — readable on sepia/cream background           */
+}
+.rb:hover {
+  background: rgba(0,0,0,.07); /* very faint dark hover state on light/sepia   */
+}
+#reader-main.dk .rb:hover {
+  background: rgba(255,255,255,.07); /* very faint light hover state on dark    */
+}
 
+/* Pill variant — adds a visible border for togglable buttons */
 .rb.pill {
   font-size: 12px;
-  border: 1px solid rgba(0,0,0,.13);
-  padding: 3px 8px;
+  border:    1px solid rgba(0,0,0,.13); /* subtle dark border on light bg       */
+  padding:   3px 8px;
 }
-#reader-main.dk .rb.pill { border-color: rgba(255,255,255,.13); }
+#reader-main.dk .rb.pill {
+  border-color: rgba(255,255,255,.13); /* subtle light border on dark bg        */
+}
+/* Active state for pill buttons — gold tint background + gold border */
 .rb.pill.on {
-  background: rgba(201,170,112,.15);
-  border-color: var(--accent);
-  color: #7a4510;
+  background:   rgba(201,170,112,.15); /* very faint gold fill                  */
+  border-color: var(--accent);          /* solid gold border                    */
+  color:        #7a4510;                /* warm brown — contrast on gold tint   */
 }
-#reader-main.dk .rb.pill.on { color: var(--accent); }
+#reader-main.dk .rb.pill.on {
+  color: var(--accent); /* full gold text on dark background                    */
+}
 
+
+/* ============================================================
+   8. BOOK TITLE DISPLAY  (#r-title)
+   ============================================================
+   Shows the current book's title centred in the toolbar.
+   flex: 1 makes it grow to fill all available space between the
+   left-side buttons and the right-side buttons.
+   The title is decorative — it doesn't need to be fully readable,
+   hence the very low opacity (rgba with .3 alpha).
+   ============================================================ */
 #r-title {
-  flex: 1;
-  text-align: center;
-  font-size: 12px;
-  color: rgba(0,0,0,.3);
-  overflow: hidden;
+  flex:          1;                   /* fill available space between button groups */
+  text-align:    center;
+  font-size:     12px;
+  color:         rgba(0,0,0,.3);      /* very dim — present but not distracting     */
+  overflow:      hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-  padding: 0 6px;
+  white-space:   nowrap;
+  padding:       0 6px;
 }
 #reader-main.dk #r-title { color: rgba(255,255,255,.2); }
 #reader-main.sp #r-title { color: rgba(60,40,10,.3); }
 
-#fs-num { font-size: 11px; color: #bbb; min-width: 30px; text-align: center; }
-
-#bm-star { font-size: 17px; color: rgba(0,0,0,.22); }
-#bm-star.on { color: var(--bookmark) !important; }
-#reader-main.dk #bm-star { color: rgba(255,255,255,.2); }
-
-/* ── DISPLAY PANEL ── */
-#disp-panel {
-  position: absolute;
-  top: 48px; right: 12px;
-  z-index: 100;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  padding: 14px 16px;
-  width: 180px;
-  box-shadow: 0 8px 28px rgba(0,0,0,.55);
-  display: none;
+/* Font size percentage display — the number between A− and A+ */
+#fs-num {
+  font-size:  11px;
+  color:      #bbb;
+  min-width:  30px;        /* fixed width so buttons don't shift as % changes  */
+  text-align: center;
 }
-#disp-panel.on { display: block; }
 
+
+/* ============================================================
+   9. BOOKMARK STAR BUTTON  (#bm-star)
+   ============================================================
+   Shows ☆ when the current page is NOT bookmarked and ★ when
+   it IS. The .on class is added/removed by checkBmStar() in
+   toc-bookmarks.js every time the page changes.
+
+   !important is needed because .rb.pill.on has a conflicting
+   color rule — the bookmark orange needs to override it.
+   ============================================================ */
+#bm-star {
+  font-size: 17px;
+  color:     rgba(0,0,0,.22); /* dim ☆ on light background                      */
+}
+#bm-star.on {
+  color: var(--bookmark) !important; /* orange ★ when page is bookmarked        */
+}
+#reader-main.dk #bm-star {
+  color: rgba(255,255,255,.2); /* dim ☆ on dark background                       */
+}
+
+
+/* ============================================================
+   10. PDF PAGE CONTROLS  (#pdf-controls)
+   ============================================================
+   Shown instead of the epub font-size controls (A− / 100% / A+)
+   when a PDF is open. Contains:
+     [−] [100%] [+]  |  [page input]  [/ total]
+
+   reader.js shows/hides these via:
+     document.getElementById('pdf-controls').style.display = ''
+     document.getElementById('fs-wrap').style.display = 'none'
+   ============================================================ */
+#pdf-controls {
+  display:     none;          /* hidden until a PDF is opened                   */
+  align-items: center;
+  gap:         4px;
+}
+
+/* The current-page number input — narrow, text-centered */
+#pdf-page-input {
+  width:         42px;
+  text-align:    center;
+  background:    var(--surface2, #252422); /* fallback value in case base.css not loaded */
+  border:        1px solid rgba(0,0,0,.2);
+  color:         inherit;     /* inherits from .rb colour for the current theme  */
+  border-radius: 4px;
+  font-size:     12px;
+  padding:       2px 4px;
+}
+#reader-main.dk #pdf-page-input {
+  border-color: rgba(255,255,255,.15); /* lighter border on dark background     */
+}
+
+/* "/ 380" total page count display */
+#pdf-total {
+  font-size:   11px;
+  color:       #aaa;
+  white-space: nowrap; /* never wrap "/ 380" across two lines                   */
+}
+
+
+/* ============================================================
+   11. DISPLAY / THEME PANEL  (#disp-panel)
+   ============================================================
+   A floating dropdown card that appears below the ☀ button
+   when toggleDisp() in theme.js is called. Contains:
+     - Theme swatches (Light / Dark / Sepia)
+     - Font family selector
+     - Line height slider
+
+   position: absolute + top: 48px + right: 12px positions it
+   just below the toolbar's right edge.
+
+   The #rtb toolbar has position: relative... wait — actually it
+   doesn't, but #reader-main does (position: relative). So the
+   panel is positioned relative to #reader-main.
+
+   display: none → display: block controlled by .on class.
+   A document click listener in theme.js closes it when clicking outside.
+   ============================================================ */
+#disp-panel {
+  position:      absolute;
+  top:           48px;          /* just below the 42px toolbar + a little gap  */
+  right:         12px;          /* aligned to the right edge of the reader     */
+  z-index:       100;           /* above epub iframe (z:0) and stage content   */
+  background:    var(--surface);
+  border:        1px solid var(--border);
+  border-radius: 7px;
+  padding:       14px 16px;
+  width:         180px;
+  box-shadow:    0 8px 28px rgba(0,0,0,.55); /* strong shadow — floating card  */
+  display:       none;
+}
+#disp-panel.on {
+  display: block; /* shown by toggleDisp() in theme.js                          */
+}
+
+/* Section labels inside the panel — "THEME", "FONT", "LINE SPACING" */
 .dp-label {
-  font-size: 10px;
+  font-size:      10px;
   letter-spacing: .12em;
   text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 8px;
-  display: block;
+  color:          var(--muted);
+  margin-bottom:  8px;
+  display:        block; /* <span> rendered as block so margin applies          */
 }
-.theme-row { display: flex; gap: 7px; margin-bottom: 12px; }
-.tsw {
-  flex: 1;
-  height: 26px;
-  border-radius: 4px;
-  border: 2px solid transparent;
-  cursor: pointer;
-  font-size: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: border-color .12s;
-}
-.tsw:hover, .tsw.on { border-color: var(--accent); }
-.tsw.tl { background: #f6f1e9; color: #28200f; }
-.tsw.td { background: #18140f; color: #cfc9bc; }
-.tsw.ts { background: #f0e6cf; color: #3b2c14; }
-
+/* Sub-labels for Font and Line Spacing sections */
 .dp-sub {
-  font-size: 10px;
+  font-size:      10px;
   letter-spacing: .1em;
   text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 6px;
-  display: block;
+  color:          var(--muted);
+  margin-bottom:  6px;
+  display:        block;
 }
+
+/* Font family <select> dropdown */
 #font-sel {
-  width: 100%;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  color: var(--text);
-  padding: 5px 7px;
+  width:         100%;
+  background:    var(--surface2);
+  border:        1px solid var(--border);
+  color:         var(--text);
+  padding:       5px 7px;
   border-radius: 4px;
-  font-size: 12px;
+  font-size:     12px;
   margin-bottom: 10px;
 }
-.lh-wrap           { display: flex; align-items: center; gap: 6px; }
-.lh-wrap input     { flex: 1; }
-.lh-wrap span      { font-size: 11px; color: var(--muted); min-width: 24px; }
 
-/* ── EPUB STAGE ── */
-#epub-stage {
-  flex: 1;
-  display: flex;
-  align-items: stretch;
+/* Line height slider row: [slider — grows] [1.7 value label] */
+.lh-wrap {
+  display:     flex;
+  align-items: center;
+  gap:         6px;
+}
+.lh-wrap input {
+  flex: 1; /* the range input fills available space                             */
+}
+.lh-wrap span {
+  font-size:  11px;
+  color:      var(--muted);
+  min-width:  24px; /* fixed so the layout doesn't shift as the value changes  */
+}
+
+
+/* ============================================================
+   12. THEME SWATCHES  (.tsw)
+   ============================================================
+   Three small colour squares (Light / Dark / Sepia) that the
+   user clicks to change the reading theme. Each shows its own
+   background colour so the choice is immediately obvious.
+
+   The active swatch gets .on class added by setTheme() in theme.js.
+   A 2px solid border appears on hover and when active — transparent
+   by default so the layout doesn't shift when it appears.
+   ============================================================ */
+.theme-row {
+  display:       flex;
+  gap:           7px;
+  margin-bottom: 12px;
+}
+.tsw {
+  flex:            1;                    /* equal width swatches                */
+  height:          26px;
+  border-radius:   4px;
+  border:          2px solid transparent; /* reserve space for hover/active border */
+  cursor:          pointer;
+  font-size:       10px;
+  display:         flex;
+  align-items:     center;
   justify-content: center;
-  overflow: hidden;
-  position: relative;
+  transition:      border-color .12s;
 }
-#epub-viewer { flex-shrink: 0; position: relative; }
+.tsw:hover,
+.tsw.on {
+  border-color: var(--accent); /* gold border = hovered or active               */
+}
+/* Light swatch — paper white background */
+.tsw.tl { background: #f6f1e9; color: #28200f; }
+/* Dark swatch — near-black background */
+.tsw.td { background: #18140f; color: #cfc9bc; }
+/* Sepia swatch — warm cream background */
+.tsw.ts { background: #f0e6cf; color: #3b2c14; }
 
-/* Spine divider in double-page mode */
+
+/* ============================================================
+   13. EPUB STAGE  (#epub-stage)
+   ============================================================
+   The container that epub.js renders the book into. epub.js
+   creates an <iframe> inside #epub-viewer, which sits inside
+   #epub-stage.
+
+   justify-content: center horizontally centres the viewer
+   column (which has a fixed pixel width set by buildRend() in
+   reader.js) within the full-width stage.
+
+   overflow: hidden prevents the epub iframe from overflowing
+   on pages where the content is wider than expected.
+
+   position: relative is required for:
+     - The nav arrows (position: absolute)
+     - The loading overlay (position: absolute)
+   ============================================================ */
+#epub-stage {
+  flex:            1;         /* fill all vertical space between toolbar+footer */
+  display:         flex;
+  align-items:     stretch;   /* viewer fills the full height                  */
+  justify-content: center;    /* centre the fixed-width viewer column          */
+  overflow:        hidden;
+  position:        relative;  /* anchor for nav arrows and loading overlay     */
+}
+
+/* The epub.js render target — width and height set in pixels by buildRend()
+   in reader.js. position: relative needed for epub.js's internal layout. */
+#epub-viewer {
+  flex-shrink: 0;   /* never compress below the JS-set pixel width             */
+  position:    relative;
+}
+
+
+/* ============================================================
+   14. DOUBLE-PAGE SPINE LINE
+   ============================================================
+   When the layout is set to "double page", a subtle vertical
+   line is drawn at the horizontal centre of the stage using the
+   ::after pseudo-element on #epub-stage.double.
+
+   The .double class is added/removed by toggleLayout() in reader.js.
+
+   top: 10% / bottom: 10% makes the line shorter than full height
+   so it looks like a book spine margin rather than a hard divider.
+
+   pointer-events: none ensures it never blocks clicks.
+   ============================================================ */
 #epub-stage.double::after {
-  content: '';
-  position: absolute;
-  top: 10%; bottom: 10%;
-  left: 50%; width: 1px;
-  background: rgba(0,0,0,.08);
+  content:        '';
+  position:       absolute;
+  top:            10%;          /* start 10% from the top                      */
+  bottom:         10%;          /* end 10% from the bottom                     */
+  left:           50%;          /* centred horizontally                        */
+  width:          1px;
+  background:     rgba(0,0,0,.08); /* very faint dark line on light bg         */
   pointer-events: none;
-  z-index: 4;
+  z-index:        4;            /* above epub content (z: 0) but below arrows (z: 5) */
 }
-#reader-main.dk #epub-stage.double::after { background: rgba(255,255,255,.06); }
-#reader-main.sp #epub-stage.double::after { background: rgba(80,50,10,.1); }
+/* Dark theme spine line — light instead of dark */
+#reader-main.dk #epub-stage.double::after {
+  background: rgba(255,255,255,.06);
+}
+/* Sepia theme spine line — warm brown tint */
+#reader-main.sp #epub-stage.double::after {
+  background: rgba(80,50,10,.1);
+}
 
-/* Nav arrows */
-.nav-arr {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  background: none;
-  border: none;
-  cursor: pointer;
-  z-index: 5;
-  font-size: 30px;
-  color: rgba(0,0,0,.16);
-  padding: 10px;
-  border-radius: 50%;
-  transition: all .15s;
+
+/* ============================================================
+   15. PDF STAGE  (#pdf-stage, #pdf-viewer)
+   ============================================================
+   The container for PDF.js canvas rendering. Different from the
+   epub stage because:
+     - Canvases are stacked vertically (one per page rendered)
+     - The background is dark gray — PDF pages render themselves
+       white, so a dark surround looks natural (like a document viewer)
+     - Both horizontal and vertical scrolling are allowed (wide pages)
+
+   #pdf-viewer is the scrollable inner area. Each call to
+   _renderPdfPage() in reader.js clears it and appends a new canvas.
+   The canvas has margin: 0 auto applied inline to stay centred.
+
+   box-shadow on canvas gives each page a subtle shadow to
+   separate it visually from the dark background.
+   ============================================================ */
+#pdf-stage {
+  flex:           1;
+  display:        flex;
+  flex-direction: column;
+  align-items:    stretch;
+  overflow:       hidden;
+  position:       relative;
+  background:     #3a3a3a;  /* neutral dark gray surround for PDF pages         */
 }
-.nav-arr:hover                    { color: rgba(0,0,0,.4);         background: rgba(0,0,0,.05); }
-#reader-main.dk .nav-arr          { color: rgba(255,255,255,.13); }
-#reader-main.dk .nav-arr:hover    { color: rgba(255,255,255,.38);  background: rgba(255,255,255,.05); }
-#na-prev { left: 4px; }
+#reader-main.dk #pdf-stage {
+  background: #1a1a1a; /* darker for dark theme                                 */
+}
+
+#pdf-viewer {
+  flex:           1;
+  overflow-y:     auto;  /* scroll between rendered pages                       */
+  overflow-x:     auto;  /* allow horizontal scroll for wide pages              */
+  padding:        20px;  /* breathing room around the canvas                    */
+  display:        flex;
+  flex-direction: column;
+  align-items:    center; /* centre each canvas horizontally                    */
+  gap:            12px;   /* space between pages when multiple are rendered     */
+}
+/* Shadow on each rendered PDF canvas — gives a floating page appearance */
+#pdf-viewer canvas {
+  box-shadow:    0 4px 24px rgba(0,0,0,.45);
+  border-radius: 2px; /* slightly rounded corners on the page                   */
+}
+
+
+/* ============================================================
+   16. NAVIGATION ARROWS  (.nav-arr)
+   ============================================================
+   The large ‹ and › arrows on the left and right edges of the
+   reading area. They overlap the epub stage (position: absolute
+   + z-index: 5) so they're always accessible.
+
+   They start very faint (opacity ~0.16 via rgba color) and
+   become fully visible on hover. This keeps them out of the
+   way while reading but easy to find.
+
+   border-radius: 50% makes them circular on hover background.
+   The hover background is barely visible (rgba .05) — just
+   enough to see that it's a clickable area.
+
+   #na-prev / #na-next position them at the left and right edges.
+   ============================================================ */
+.nav-arr {
+  position:      absolute;
+  top:           50%;
+  transform:     translateY(-50%); /* vertically centre on the reading area    */
+  background:    none;
+  border:        none;
+  cursor:        pointer;
+  z-index:       5;           /* above epub iframe content                     */
+  font-size:     30px;
+  color:         rgba(0,0,0,.16);  /* very faint on light background           */
+  padding:       10px;
+  border-radius: 50%;
+  transition:    all .15s;
+}
+.nav-arr:hover {
+  color:      rgba(0,0,0,.4);      /* more visible on hover                    */
+  background: rgba(0,0,0,.05);     /* faint hover circle                       */
+}
+/* Dark theme arrows */
+#reader-main.dk .nav-arr {
+  color: rgba(255,255,255,.13);
+}
+#reader-main.dk .nav-arr:hover {
+  color:      rgba(255,255,255,.38);
+  background: rgba(255,255,255,.05);
+}
+/* Left arrow — positioned at the very left edge */
+#na-prev { left:  4px; }
+/* Right arrow — positioned at the very right edge */
 #na-next { right: 4px; }
 
-/* Loading overlay */
+
+/* ============================================================
+   17. LOADING OVERLAY  (#loading)
+   ============================================================
+   Covers the entire reading area (position: absolute, inset: 0)
+   while a book is opening. Sits on top of both the epub and pdf
+   stages (z-index: 30).
+
+   Contains a spinning circle (.spin) and "Opening book..." text.
+   Shown/hidden by reader.js via display: flex / display: none.
+
+   The spinner uses a CSS border trick:
+     - A full circle border in a dim colour
+     - One side (border-top-color) set to the accent colour
+     - animation rotates the element → the accent side appears to spin
+
+   The background is transparent — #reader-main.background shows through,
+   which changes with the reading theme so the overlay blends naturally.
+   ============================================================ */
 #loading {
-  position: absolute;
-  inset: 0;
-  z-index: 30;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  position:        absolute;
+  inset:           0;       /* cover the entire parent element                  */
+  z-index:         30;      /* above epub/pdf content but below toast (9999)   */
+  display:         flex;
+  flex-direction:  column;
+  align-items:     center;
   justify-content: center;
-  gap: 14px;
+  gap:             14px;
 }
+
+/* The spinning circle */
 .spin {
-  width: 24px; height: 24px;
-  border: 2px solid rgba(0,0,0,.1);
-  border-top-color: var(--accent-dim);
+  width:        24px;
+  height:       24px;
+  border:       2px solid rgba(0,0,0,.1);       /* dim full circle             */
+  border-top-color: var(--accent-dim);           /* gold arc — this part spins */
   border-radius: 50%;
-  animation: spin-anim .75s linear infinite;
+  animation:    spin-anim .75s linear infinite;  /* continuous rotation        */
 }
-#reader-main.dk .spin { border-color: rgba(255,255,255,.08); border-top-color: var(--accent); }
-@keyframes spin-anim { to { transform: rotate(360deg); } }
-.spin-txt { font-size: 12px; color: #aaa; }
+/* Dark theme spinner — light dim circle, light gold arc */
+#reader-main.dk .spin {
+  border-color:     rgba(255,255,255,.08);
+  border-top-color: var(--accent);
+}
+/* The rotation keyframe — rotates 360° from the browser's perspective */
+@keyframes spin-anim {
+  to { transform: rotate(360deg); }
+}
+/* Loading text below the spinner */
+.spin-txt {
+  font-size: 12px;
+  color:     #aaa;
+}
 
-/* ── FOOTER / PROGRESS BAR ── */
+
+/* ============================================================
+   18. FOOTER / PROGRESS BAR  (#rfooter)
+   ============================================================
+   A 33px strip at the bottom of the reading area showing:
+     [progress bar — grows]  [42%]
+
+   The progress bar uses a technique to have a larger click area
+   than its visible size:
+     - The visible bar is 4px tall
+     - padding: 8px 0 expands the clickable area to 20px tall
+     - margin: -8px 0 compensates so the bar doesn't push other
+       elements away
+
+   This makes it much easier to click (especially on touch screens)
+   without making the visible bar look chunky.
+
+   #prog-fill's width is updated as a percentage by updateFooter()
+   (for epub) and _updatePdfProgress() (for pdf) in reader.js.
+   pointer-events: none on the fill prevents it from accidentally
+   capturing clicks meant for the wrap.
+   ============================================================ */
 #rfooter {
-  height: 33px;
-  flex-shrink: 0;
-  background: rgba(246,241,233,.88);
-  border-top: 1px solid rgba(0,0,0,.07);
-  display: flex;
-  align-items: center;
-  padding: 0 14px;
-  gap: 10px;
-  font-size: 11px;
-  color: #c0bbaf;
+  height:       33px;
+  flex-shrink:  0;                          /* never compress                  */
+  background:   rgba(246,241,233,.88);      /* semi-transparent light bg       */
+  border-top:   1px solid rgba(0,0,0,.07);  /* separator from reading content  */
+  display:      flex;
+  align-items:  center;
+  padding:      0 14px;
+  gap:          10px;
+  font-size:    11px;
+  color:        #c0bbaf;                    /* dim percentage text             */
 }
-#reader-main.dk #rfooter { background: rgba(24,20,15,.88); border-color: rgba(255,255,255,.05); color: #555; }
-#reader-main.sp #rfooter { background: rgba(240,230,207,.88); }
+/* Dark theme footer */
+#reader-main.dk #rfooter {
+  background:  rgba(24,20,15,.88);
+  border-color: rgba(255,255,255,.05);
+  color:        #555;
+}
+/* Sepia theme footer */
+#reader-main.sp #rfooter {
+  background: rgba(240,230,207,.88);
+}
 
+/* The clickable progress bar track.
+   The 8px padding trick explained above creates an invisible 20px tall
+   hit area while keeping the visual bar at 4px. */
 #prog-wrap {
-  flex: 1;
-  height: 4px;
-  background: rgba(0,0,0,.12);
+  flex:          1;               /* fill all available space                   */
+  height:        4px;             /* VISUAL height only                         */
+  background:    rgba(0,0,0,.12); /* dim track = unread portion                 */
   border-radius: 2px;
-  cursor: pointer;
-  position: relative;
-  /* expanded hit area */
-  padding: 8px 0;
-  margin: -8px 0;
+  cursor:        pointer;
+  position:      relative;        /* needed for absolute-positioned #prog-fill  */
+  padding:       8px 0;           /* invisible padding to enlarge click area    */
+  margin:        -8px 0;          /* negative margin cancels the padding effect */
 }
-#reader-main.dk #prog-wrap { background: rgba(255,255,255,.1); }
+#reader-main.dk #prog-wrap {
+  background: rgba(255,255,255,.1);
+}
 
+/* The filled portion of the progress bar.
+   position: absolute + top: 8px aligns it to where the 4px visual
+   bar actually is (offset by the 8px padding of the parent).
+   width is set as a percentage inline by JS. */
 #prog-fill {
-  height: 4px;
-  position: absolute;
-  top: 8px; left: 0;
-  background: var(--accent-dim);
+  height:        4px;
+  position:      absolute;
+  top:           8px;             /* align to visual bar position inside padding */
+  left:          0;
+  background:    var(--accent-dim); /* dark gold on light bg                    */
   border-radius: 2px;
-  transition: width .25s;
-  pointer-events: none;
+  transition:    width .25s;        /* smooth progress bar animation            */
+  pointer-events: none;             /* don't intercept clicks on the track      */
 }
-#reader-main.dk #prog-fill { background: var(--accent); }
+#reader-main.dk #prog-fill {
+  background: var(--accent); /* bright gold on dark bg                          */
+}
 
-#prog-pct { min-width: 30px; text-align: right; }
+/* The percentage text — "42%" — right-aligned.
+   min-width prevents the footer layout from shifting as the
+   value changes from "0%" (2 chars) to "100%" (4 chars). */
+#prog-pct {
+  min-width:  30px;
+  text-align: right;
+}

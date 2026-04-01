@@ -1,115 +1,761 @@
-/* ── library.css — Library grid, drop zone, book cards ── */
+/* ============================================================
+   library.css
+   Styles for the library view — everything visible when you're
+   browsing your book collection (not reading).
 
+   Covers:
+     1.  Library inner scroll container
+     2.  Folder status bar
+     3.  Drop zone
+     4.  Search + filter control bar
+     5.  Library heading and book count
+     6.  Book grid
+     7.  Book card and all its parts
+     8.  File type badges (EPUB / PDF)
+     9.  Reading progress bar on card
+     10. Card metadata (title, author, genre, date, tags)
+     11. Card hover action buttons (edit, remove)
+     12. Empty state message
+     13. Metadata edit modal
+
+   Depends on base.css for: --bg, --surface, --surface2, --border,
+   --text, --muted, --accent, --accent-dim, --danger.
+   ============================================================ */
+
+
+/* ============================================================
+   1. LIBRARY INNER SCROLL CONTAINER
+   ============================================================
+   #lib-inner is the direct child of #view-library.
+   flex: 1 fills all available height; overflow-y: auto enables
+   vertical scrolling when the book grid is taller than the viewport.
+   The padding gives the content breathing room from all edges.
+   ============================================================ */
 #lib-inner {
-  flex: 1;
-  overflow-y: auto;
-  padding: 32px 40px;
+  flex:       1;           /* fill all height below the topbar                  */
+  overflow-y: auto;        /* scroll when content is taller than the screen     */
+  padding:    28px 36px;   /* top/bottom and left/right breathing room          */
 }
 
-#drop-zone {
-  border: 2px dashed var(--border);
-  border-radius: 10px;
-  padding: 44px;
-  text-align: center;
-  cursor: pointer;
-  transition: all .2s;
-  margin-bottom: 32px;
-  background: var(--surface);
+
+/* ============================================================
+   2. FOLDER STATUS BAR
+   ============================================================
+   Shown at the top of the library when the File System Access
+   API or Electron folder integration is available. Tells the
+   user whether a library folder is connected.
+
+   It's a flex row: [icon] [label text — grows] [action buttons]
+
+   The bar starts display:none and is shown/hidden by
+   updateFolderUI() in shelf-folder.js based on browser support
+   and whether a folder is currently set.
+   ============================================================ */
+#folder-bar {
+  display:       flex;
+  align-items:   center;
+  gap:           10px;
+  background:    var(--surface);     /* matches card background                */
+  border:        1px solid var(--border);
+  border-radius: 8px;
+  padding:       10px 14px;
+  margin-bottom: 20px;               /* space between bar and drop zone        */
+  font-size:     12px;
 }
-#drop-zone:hover, #drop-zone.over {
+
+/* The folder emoji icon — kept at fixed size so the text next
+   to it doesn't push it around when the label is long */
+#folder-icon {
+  font-size:   18px;
+  flex-shrink: 0; /* never compress — always show the full icon                */
+}
+
+/* The status text — e.g. "Library folder connected" or "No folder set".
+   flex: 1 makes it grow to fill available space, pushing action buttons right.
+   Three state classes are toggled by updateFolderUI() in shelf-folder.js. */
+.folder-label {
+  flex:          1;              /* fill remaining row space                      */
+  color:         var(--muted);   /* default: dimmed (no folder connected)        */
+  overflow:      hidden;         /* clip long folder paths                        */
+  text-overflow: ellipsis;       /* show … when path is too long to display fully */
+  white-space:   nowrap;         /* keep on one line                              */
+}
+.folder-label.connected {
+  color: var(--accent); /* gold — folder is connected and working               */
+}
+.folder-label.warn {
+  color: #c49a45; /* amber — permission lapsed, reconnection needed            */
+}
+
+/* Small action buttons inside the folder bar.
+   Shared base style; specific states controlled via modifier classes.
+   flex-shrink: 0 prevents buttons from compressing when the label is long. */
+.folder-btn {
+  background:    none;
+  border:        1px solid var(--border);
+  color:         var(--muted);
+  padding:       4px 12px;
+  border-radius: 4px;
+  cursor:        pointer;
+  font-family:   Georgia, serif;
+  font-size:     11px;
+  white-space:   nowrap;         /* prevent button text from wrapping          */
+  transition:    all .15s;
+  flex-shrink:   0;              /* never compress — always fully readable     */
+}
+.folder-btn:hover {
   border-color: var(--accent);
-  background: var(--surface2);
+  color:        var(--accent);
 }
-#drop-zone p    { color: var(--muted); font-size: 14px; line-height: 1.8; }
-#drop-zone span { color: var(--accent); }
-#drop-zone span:hover { text-decoration: underline; }
+/* Primary variant — "Set Library Folder" button: filled gold background */
+.folder-btn.primary {
+  background:  var(--accent);
+  color:       #1a1008;         /* very dark brown for contrast on gold        */
+  border-color: var(--accent);
+  font-weight: bold;
+}
+.folder-btn.primary:hover {
+  background: #d4b87a; /* slightly lighter gold on hover                       */
+}
+/* Danger variant — "Disconnect" button: red border/text on hover only */
+.folder-btn.danger:hover {
+  border-color: var(--danger);
+  color:        var(--danger);
+}
 
-#file-input { display: none; }
 
+/* ============================================================
+   3. DROP ZONE
+   ============================================================
+   The dashed rectangle at the top of the library that accepts
+   dragged EPUB/PDF files or acts as a click target to open the
+   file browser.
+
+   Two active states:
+     :hover — mouse is hovering over the element
+     .over  — a file is being dragged over it (added by initDropZone()
+               in library.js via the 'dragover' event)
+
+   Both states use the same visual — accent border + slightly
+   brighter background — to signal "drop here".
+   ============================================================ */
+#drop-zone {
+  border:        2px dashed var(--border); /* dashed = "drop here" visual cue  */
+  border-radius: 10px;
+  padding:       36px;
+  text-align:    center;
+  cursor:        pointer;                  /* hand cursor — it's clickable too */
+  transition:    all .2s;                  /* smooth color changes             */
+  margin-bottom: 24px;
+  background:    var(--surface);
+}
+#drop-zone:hover,
+#drop-zone.over {
+  border-color: var(--accent);  /* gold border when active                     */
+  background:   var(--surface2); /* slightly lighter background                */
+}
+#drop-zone p {
+  color:       var(--muted);
+  font-size:   13px;
+  line-height: 1.8;
+}
+/* The "browse to add" link text inside the paragraph */
+#drop-zone span {
+  color: var(--accent); /* gold to visually signal it's interactive             */
+}
+#drop-zone span:hover {
+  text-decoration: underline;
+}
+
+/* The actual <input type="file"> is hidden — the drop zone and the
+   "+ Add Book" button both trigger it programmatically via .click() */
+#file-input {
+  display: none;
+}
+
+
+/* ============================================================
+   4. SEARCH + FILTER CONTROL BAR
+   ============================================================
+   A flex row containing:
+     [search input — grows]  [genre ▼]  [author ▼]  [type ▼]  [sort ▼]
+
+   flex-wrap: wrap lets the dropdowns move to a second row on
+   narrow screens rather than overflowing off-screen.
+
+   All live-filtering is wired in initDropZone() → applyFilters()
+   in library.js. No form submit needed — input events fire immediately.
+   ============================================================ */
+#lib-controls {
+  display:       flex;
+  gap:           8px;
+  align-items:   center;
+  flex-wrap:     wrap;     /* wrap to next line on narrow viewports              */
+  margin-bottom: 20px;
+}
+
+/* Search input wrapper — position:relative so the ::before
+   magnifier icon can be positioned absolutely inside it */
+#search-wrap {
+  position:  relative;
+  flex:      1;          /* grows to fill available horizontal space            */
+  min-width: 180px;      /* never compress so small it's unusable              */
+}
+
+/* CSS magnifier icon injected before the input via ::before pseudo-element.
+   pointer-events: none ensures clicks pass through to the input underneath. */
+#search-wrap::before {
+  content:        '⌕';           /* unicode search symbol                      */
+  position:       absolute;
+  left:           10px;
+  top:            50%;
+  transform:      translateY(-50%); /* vertically center the icon              */
+  color:          var(--muted);
+  font-size:      16px;
+  pointer-events: none;             /* don't block clicks on the input          */
+}
+
+/* The search text input itself.
+   padding-left: 30px reserves space for the ::before magnifier icon. */
+#search-input {
+  width:         100%;
+  background:    var(--surface);
+  border:        1px solid var(--border);
+  color:         var(--text);
+  padding:       7px 10px 7px 30px; /* extra left padding = room for the icon  */
+  border-radius: 5px;
+  font-family:   Georgia, serif;
+  font-size:     13px;
+  transition:    border-color .15s;
+}
+#search-input:focus {
+  outline:      none;          /* remove default browser focus ring             */
+  border-color: var(--accent); /* replace with gold border on focus            */
+}
+#search-input::placeholder {
+  color: var(--muted); /* dimmed placeholder text                               */
+}
+
+/* Shared style for all filter/sort dropdowns.
+   They use the native <select> element — no custom dropdown needed.
+   min-width: 110px prevents them from becoming too narrow to read. */
+.lib-select {
+  background:    var(--surface);
+  border:        1px solid var(--border);
+  color:         var(--muted);    /* dimmed until the user interacts with it    */
+  padding:       7px 10px;
+  border-radius: 5px;
+  font-family:   Georgia, serif;
+  font-size:     12px;
+  cursor:        pointer;
+  transition:    border-color .15s;
+  min-width:     110px;
+}
+.lib-select:focus {
+  outline:      none;
+  border-color: var(--accent);
+}
+.lib-select:hover {
+  border-color: var(--accent);
+  color:        var(--text); /* brighten text on hover                          */
+}
+
+
+/* ============================================================
+   5. LIBRARY HEADING + BOOK COUNT
+   ============================================================
+   A small row showing "YOUR LIBRARY" label and the live count
+   like "12 books" or "4 of 12" when filters are active.
+
+   align-items: baseline aligns the label and count text on
+   their text baselines, which looks better than centering when
+   font sizes differ.
+   ============================================================ */
+#lib-heading-row {
+  display:       flex;
+  align-items:   baseline;
+  gap:           10px;
+  margin-bottom: 16px;
+}
+/* Uppercase small-caps style label */
 .lib-head {
-  font-size: 10px;
-  letter-spacing: .16em;
+  font-size:      10px;
+  letter-spacing: .16em;      /* wide tracking for all-caps look               */
   text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 18px;
+  color:          var(--muted);
+}
+/* Live count — updated by renderGrid() in library.js */
+#lib-count {
+  font-size: 11px;
+  color:     var(--muted);
 }
 
+
+/* ============================================================
+   6. BOOK GRID
+   ============================================================
+   CSS Grid with auto-fill columns. Each column is at least 154px
+   wide and grows equally to fill the row. New rows are added
+   automatically when cards don't fit.
+
+   repeat(auto-fill, minmax(154px, 1fr)):
+     auto-fill  = create as many columns as fit
+     minmax     = each column is at least 154px, at most 1 equal fraction
+     Result: on a 1200px wide area you get ~7 columns; on 600px ~3 columns.
+   ============================================================ */
 #book-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
-  gap: 20px;
+  display:               grid;
+  grid-template-columns: repeat(auto-fill, minmax(154px, 1fr));
+  gap:                   20px; /* space between all cards                       */
 }
 
-/* ── Book card ── */
+
+/* ============================================================
+   7. BOOK CARD
+   ============================================================
+   Each card is a vertical flex column:
+     [cover image or placeholder]
+     [type badge overlay]
+     [progress bar — 2px line]
+     [info: title, author, genre, date, tags]
+     [action buttons — only visible on hover]
+
+   position: relative enables the absolute-positioned type badge
+   and action buttons to be anchored to the card itself.
+
+   The hover transform (translateY(-2px)) gives a subtle "lift"
+   effect when hovering over a card.
+   ============================================================ */
 .bcard {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  overflow: hidden;
-  cursor: pointer;
-  transition: all .18s;
-  position: relative;
+  background:    var(--surface);
+  border:        1px solid var(--border);
+  border-radius: 8px;
+  overflow:      hidden;         /* clip cover image to rounded corners         */
+  cursor:        pointer;
+  transition:    all .18s;       /* smooth hover transition                     */
+  position:      relative;       /* needed for absolute-positioned children     */
+  display:       flex;
+  flex-direction: column;        /* stack cover → progress → info vertically   */
 }
-.bcard:hover { border-color: var(--accent); transform: translateY(-2px); }
+.bcard:hover {
+  border-color: var(--accent);   /* gold border on hover                       */
+  transform:    translateY(-2px); /* lift the card slightly off the page       */
+}
 
-.bcard img {
-  width: 100%;
-  aspect-ratio: 2/3;
-  object-fit: cover;
-  display: block;
+/* Cover wrapper — position:relative lets the type badge be
+   positioned absolutely in the bottom-right corner of the image */
+.bcard-cover-wrap {
+  position:    relative;
+  flex-shrink: 0; /* never compress — cover stays at its natural height        */
 }
+
+/* Cover image — aspect-ratio 2:3 is the standard book cover proportion.
+   object-fit: cover crops the image to fill the space without distortion. */
+.bcard-cover-wrap img {
+  width:        100%;
+  aspect-ratio: 2/3;     /* portrait book cover ratio                          */
+  object-fit:   cover;   /* crop rather than letterbox                         */
+  display:      block;   /* removes inline gap below image                     */
+}
+
+/* Placeholder shown when no cover image is available.
+   Uses the same aspect-ratio as the image so the card height is consistent. */
 .bcard-ph {
-  width: 100%;
-  aspect-ratio: 2/3;
-  display: flex;
-  align-items: center;
+  width:           100%;
+  aspect-ratio:    2/3;
+  display:         flex;
+  align-items:     center;
   justify-content: center;
-  background: var(--surface2);
-  font-size: 38px;
+  background:      var(--surface2);
+  font-size:       40px; /* large emoji as placeholder                          */
 }
 
-.bcard-prog     { height: 2px; background: var(--border); }
-.bcard-prog div { height: 100%; background: var(--accent); }
 
-.bcard-info   { padding: 9px 11px 11px; }
-.bcard-title  {
-  font-size: 12px;
-  color: var(--text);
+/* ============================================================
+   8. FILE TYPE BADGES  (EPUB / PDF)
+   ============================================================
+   A small pill in the bottom-right corner of the cover image.
+   position: absolute positions it relative to .bcard-cover-wrap.
+   pointer-events: none ensures it doesn't interfere with card clicks.
+
+   Two colour variants:
+     .epub — warm gold on dark  (matches the app accent colour)
+     .pdf  — muted red on white (red is a common PDF association)
+   ============================================================ */
+.bcard-type {
+  position:       absolute;
+  bottom:         6px;
+  right:          6px;
+  font-size:      9px;
+  letter-spacing: .08em;
+  font-family:    Georgia, serif;
+  padding:        2px 6px;
+  border-radius:  3px;
+  font-weight:    bold;
+  pointer-events: none; /* badge never blocks clicks on the card                */
+}
+.bcard-type.epub {
+  background: rgba(201,170,112,.85); /* semi-transparent gold                   */
+  color:      #1a1008;               /* dark brown for contrast                */
+}
+.bcard-type.pdf {
+  background: rgba(196,107,107,.85); /* semi-transparent red                   */
+  color:      #fff;
+}
+
+
+/* ============================================================
+   9. READING PROGRESS BAR ON CARD
+   ============================================================
+   A 2px line running the full width of the card between the
+   cover image and the info section. Its inner div's width is
+   set inline as a percentage in renderBookCard() in library.js.
+
+   Example: <div class="bcard-prog"><div style="width:42%"></div></div>
+
+   flex-shrink: 0 prevents it from collapsing to zero height.
+   ============================================================ */
+.bcard-prog {
+  height:      2px;
+  background:  var(--border); /* dim track — the unfilled portion              */
+  flex-shrink: 0;
+}
+.bcard-prog div {
+  height:     100%;
+  background: var(--accent); /* gold fill — the portion already read           */
+  /* width is set dynamically per-card via inline style in library.js */
+}
+
+
+/* ============================================================
+   10. CARD INFO SECTION
+   ============================================================
+   Contains title, author, genre, publication date, and tags.
+   flex: 1 makes this section grow to push it down from the cover,
+   keeping card heights consistent in the grid.
+
+   Text overflow handling: all single-line text fields use the
+   three-property combination to truncate with an ellipsis:
+     white-space: nowrap       — no line wrapping
+     overflow: hidden          — clip any overflow
+     text-overflow: ellipsis   — show "..." at the end
+   ============================================================ */
+.bcard-info {
+  padding: 8px 10px 6px;
+  flex:    1; /* grows to fill remaining card height below the progress bar    */
+}
+
+.bcard-title {
+  font-size:     12px;
+  color:         var(--text);  /* primary text — most prominent field          */
   margin-bottom: 3px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.bcard-author {
-  font-size: 10px;
-  color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
+  white-space:   nowrap;
+  overflow:      hidden;
   text-overflow: ellipsis;
 }
 
+.bcard-author {
+  font-size:     10px;
+  color:         var(--muted); /* secondary text — dimmed                      */
+  margin-bottom: 2px;
+  white-space:   nowrap;
+  overflow:      hidden;
+  text-overflow: ellipsis;
+}
+
+.bcard-genre {
+  font-size:     10px;
+  color:         var(--accent-dim); /* slightly gold to distinguish from author */
+  margin-bottom: 2px;
+  white-space:   nowrap;
+  overflow:      hidden;
+  text-overflow: ellipsis;
+}
+
+.bcard-pub {
+  font-size:     10px;
+  color:         var(--muted);
+  margin-bottom: 4px;
+}
+
+/* Tags container — flex row that wraps when there are many tags */
+.bcard-tags {
+  display:   flex;
+  flex-wrap: wrap;  /* allow tags to wrap to a second line if needed           */
+  gap:       3px;
+  margin-top: 2px;
+}
+
+/* Individual tag pill */
+.tag {
+  font-size:     9px;
+  background:    var(--surface2);  /* slightly elevated background             */
+  border:        1px solid var(--border);
+  color:         var(--muted);
+  padding:       1px 5px;
+  border-radius: 3px;
+  white-space:   nowrap; /* never split a tag across lines                     */
+}
+
+
+/* ============================================================
+   11. CARD HOVER ACTION BUTTONS  (edit ✎ and remove ×)
+   ============================================================
+   Two small circular buttons that appear only when hovering
+   over a card. They're stacked vertically in the top-right
+   corner of the cover image.
+
+   display: none / display: flex is toggled by:
+     .bcard:hover .bcard-actions { display: flex; }
+   This is pure CSS — no JavaScript needed to show/hide them.
+
+   position: absolute positions them relative to .bcard
+   (which has position: relative).
+
+   The buttons overlap the type badge below them — z-index on
+   .bcard-cover-wrap and .bcard-actions both use default stacking
+   so they naturally layer correctly.
+   ============================================================ */
+.bcard-actions {
+  display:        none;      /* hidden by default                               */
+  position:       absolute;
+  top:            6px;
+  right:          6px;
+  gap:            4px;
+  flex-direction: column;    /* stack edit above remove                         */
+}
+/* Show action buttons only when hovering the card */
+.bcard:hover .bcard-actions {
+  display: flex;
+}
+
+/* Shared style for both action buttons — small dark circles */
+.bcard-edit,
 .bcard-rm {
-  position: absolute;
-  top: 5px; right: 5px;
-  width: 20px; height: 20px;
-  background: rgba(0,0,0,.72);
-  border: none;
-  border-radius: 50%;
-  color: #777;
-  font-size: 12px;
-  cursor: pointer;
-  display: none;
-  align-items: center;
+  width:           22px;
+  height:          22px;
+  background:      rgba(0,0,0,.75); /* semi-transparent dark fill               */
+  border:          none;
+  border-radius:   50%;             /* circular shape                           */
+  color:           #999;
+  font-size:       12px;
+  cursor:          pointer;
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  transition:      color .12s;
+}
+/* Edit button turns gold on hover */
+.bcard-edit:hover {
+  color: var(--accent);
+}
+/* Remove button turns red on hover — warning colour for destructive action */
+.bcard-rm:hover {
+  color: var(--danger);
+}
+
+
+/* ============================================================
+   12. EMPTY STATE
+   ============================================================
+   Shown by renderGrid() in library.js when:
+     - The library has no books at all ("Add an EPUB or PDF...")
+     - Filters produce zero results ("No books match...")
+
+   The message is updated dynamically before .on is added.
+   display: none by default; display: block when .on is added.
+   ============================================================ */
+#empty {
+  text-align:  center;
+  padding:     60px 0;
+  color:       var(--muted);
+  font-size:   14px;
+  display:     none;       /* hidden by default                                 */
+  line-height: 1.8;
+}
+#empty.on {
+  display: block; /* made visible by renderGrid() in library.js                */
+}
+
+
+/* ============================================================
+   13. METADATA EDIT MODAL
+   ============================================================
+   A centred dialog for editing a book's title, author, genre,
+   publication date, and tags.
+
+   Structure:
+     #meta-modal   — full-screen darkened backdrop
+       #meta-box   — the white card dialog inside
+
+   The backdrop (position: fixed, inset: 0) covers the entire
+   viewport. Clicking the backdrop (but not the card inside)
+   calls closeMetaModal() via a document click listener in library.js.
+
+   display: none → display: flex toggled by the .on class.
+   Clicking outside (#meta-modal itself, not #meta-box) closes it.
+   ============================================================ */
+#meta-modal {
+  position:        fixed;
+  inset:           0;                    /* cover the entire viewport           */
+  background:      rgba(0,0,0,.65);      /* semi-transparent dark overlay       */
+  z-index:         500;                  /* above everything except toast (9999) */
+  display:         none;                 /* hidden by default                   */
+  align-items:     center;              /* vertically center the dialog box     */
+  justify-content: center;              /* horizontally center the dialog box   */
+}
+#meta-modal.on {
+  display: flex; /* shown by openMetaModal() in library.js                      */
+}
+
+/* The dialog card itself — sits centred over the backdrop */
+#meta-box {
+  background:    var(--surface);
+  border:        1px solid var(--border);
+  border-radius: 10px;
+  padding:       28px 32px;
+  width:         420px;
+  max-width:     94vw;   /* never wider than the screen on small displays       */
+  display:       flex;
+  flex-direction: column;
+  gap:           14px;   /* consistent spacing between each field               */
+}
+
+/* Dialog title — "EDIT METADATA" */
+#meta-box h2 {
+  font-size:      14px;
+  font-weight:    normal;      /* avoid heavy bold — this is a calm dialog      */
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color:          var(--accent);
+  margin-bottom:  4px;
+}
+
+/* Each label + input pair is a column flex container */
+.meta-field {
+  display:        flex;
+  flex-direction: column;
+  gap:            4px; /* space between label and input                         */
+}
+/* Small uppercase label above each input */
+.meta-field label {
+  font-size:      10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color:          var(--muted);
+}
+/* Text input styling — matches the search input style */
+.meta-field input {
+  background:    var(--surface2);
+  border:        1px solid var(--border);
+  color:         var(--text);
+  padding:       7px 10px;
+  border-radius: 5px;
+  font-family:   Georgia, serif;
+  font-size:     13px;
+  transition:    border-color .15s;
+}
+.meta-field input:focus {
+  outline:      none;
+  border-color: var(--accent); /* gold focus ring instead of browser default    */
+}
+/* Hint text below the tags input explaining comma-separation */
+.meta-field .meta-hint {
+  font-size: 10px;
+  color:     var(--muted);
+}
+
+/* Row of Cancel and Save buttons at the bottom of the modal.
+   justify-content: flex-end pushes them to the right side. */
+#meta-actions {
+  display:         flex;
+  gap:             10px;
+  justify-content: flex-end;
+  margin-top:      4px;
+}
+
+/* Base modal button style — same as .tbtn but used in the modal context */
+.meta-btn {
+  background:    none;
+  border:        1px solid var(--border);
+  color:         var(--muted);
+  padding:       6px 16px;
+  border-radius: 4px;
+  cursor:        pointer;
+  font-family:   Georgia, serif;
+  font-size:     12px;
+  transition:    all .15s;
+}
+.meta-btn:hover {
+  border-color: var(--accent);
+  color:        var(--accent);
+}
+/* Primary Save button — filled gold, dark text */
+.meta-btn.primary {
+  background:   var(--accent);
+  border-color: var(--accent);
+  color:        #1a1008; /* dark brown for contrast on gold                     */
+  font-weight:  bold;
+}
+.meta-btn.primary:hover {
+  background: #d4b87a; /* lighter gold on hover                                 */
+}
+
+/* Folder hint link — shown on file:// when folder sync is unavailable */
+.folder-hint-link {
+  color:           var(--accent);
+  font-size:       11px;
+  cursor:          pointer;
+  text-decoration: none;
+  white-space:     nowrap;
+  flex-shrink:     0;
+}
+.folder-hint-link:hover { text-decoration: underline; }
+
+/* ── Remove confirmation modal ── */
+#confirm-modal {
+  position:        fixed;
+  inset:           0;
+  background:      rgba(0,0,0,.65);
+  z-index:         600;   /* above meta-modal (500) */
+  display:         none;
+  align-items:     center;
   justify-content: center;
 }
-.bcard:hover .bcard-rm { display: flex; }
-.bcard-rm:hover { color: var(--danger); }
+#confirm-modal.on { display: flex; }
 
-#empty {
-  text-align: center;
-  padding: 60px 0;
-  color: var(--muted);
-  font-size: 14px;
-  display: none;
+#confirm-box {
+  background:     var(--surface);
+  border:         1px solid var(--border);
+  border-radius:  10px;
+  padding:        28px 32px;
+  width:          360px;
+  max-width:      92vw;
+  display:        flex;
+  flex-direction: column;
+  gap:            20px;
 }
-#empty.on { display: block; }
+
+#confirm-msg {
+  font-size:   14px;
+  color:       var(--text);
+  line-height: 1.6;
+}
+
+#confirm-actions {
+  display:         flex;
+  gap:             10px;
+  justify-content: flex-end;
+}
+
+/* Danger variant for the Remove button */
+.meta-btn.danger-btn {
+  background:   var(--danger);
+  border-color: var(--danger);
+  color:        #fff;
+  font-weight:  bold;
+}
+.meta-btn.danger-btn:hover {
+  background:   #d97a7a;
+  border-color: #d97a7a;
+}

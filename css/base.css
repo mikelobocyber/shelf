@@ -1,100 +1,271 @@
-/* ── base.css — CSS variables, reset, body, topbar, shared utilities ── */
+/* ============================================================
+   base.css
+   Foundation layer — loaded first on every page.
 
+   Covers:
+     1. CSS custom properties  (design tokens used everywhere)
+     2. Universal reset         (remove browser defaults)
+     3. Body layout             (the outermost flex column)
+     4. Topbar                  (the black header strip)
+     5. View containers         (library vs reader switching)
+     6. Toast notification      (bottom-center pop-up)
+     7. Scrollbar styling       (thin, subtle, WebKit-only)
+
+   Every other CSS file (library.css, reader.css) inherits the
+   custom properties defined here and assumes this file loaded first.
+   ============================================================ */
+
+
+/* ============================================================
+   1. CSS CUSTOM PROPERTIES  (design tokens)
+   ============================================================
+   Defined on :root so they're available to every element.
+   Changing a value here updates every place it's used instantly.
+
+   Naming convention:
+     --bg         = page / window background
+     --surface    = raised surfaces (cards, topbar, sidebars)
+     --surface2   = slightly lighter raised surface (hover states, inputs)
+     --border     = subtle dividing lines
+     --text       = primary readable text
+     --muted      = secondary / placeholder text
+     --accent     = gold highlight — used for active states, links, focus
+     --accent-dim = darker version of accent for progress bars on light bg
+     --danger     = destructive actions (delete button hover)
+     --bookmark   = orange-brown used for the bookmark star when active
+     --sidebar-w  = the width sidebars expand to when open (.sb.on)
+   ============================================================ */
 :root {
-  --bg: #111010;
-  --surface: #1c1b1a;
-  --surface2: #252422;
-  --border: #313030;
-  --text: #e5e0d5;
-  --muted: #726e69;
-  --accent: #c9aa70;
-  --accent-dim: #7a5f32;
-  --danger: #c46b6b;
-  --bookmark: #d4845a;
-  --sidebar-w: 268px;
+  --bg:          #111010; /* near-black — the outermost window color              */
+  --surface:     #1c1b1a; /* slightly lighter — cards, topbar, sidebar background */
+  --surface2:    #252422; /* hover backgrounds, input fills                       */
+  --border:      #313030; /* borders and dividers — subtle, not harsh             */
+  --text:        #e5e0d5; /* warm off-white — easier on eyes than pure white      */
+  --muted:       #726e69; /* dimmed text — labels, placeholders, secondary info   */
+  --accent:      #c9aa70; /* warm gold — active states, highlights, focus rings   */
+  --accent-dim:  #7a5f32; /* darker gold — progress bar fill on light backgrounds */
+  --danger:      #c46b6b; /* muted red — delete/remove hover                      */
+  --bookmark:    #d4845a; /* warm orange — bookmark star when page is bookmarked  */
+  --sidebar-w:   268px;   /* how wide the TOC and bookmarks sidebars open to      */
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* ============================================================
+   2. UNIVERSAL RESET
+   ============================================================
+   Browsers apply their own default margin, padding, and box
+   model to every element. This resets them to predictable values.
+
+   box-sizing: border-box  means padding and border are included
+   IN the element's declared width/height, not added on top.
+   Without this, a div with width:200px and padding:10px would
+   actually be 220px wide — confusing and hard to work with.
+   ============================================================ */
+* {
+  box-sizing: border-box; /* include padding+border in dimensions              */
+  margin:     0;          /* remove all default outer spacing                   */
+  padding:    0;          /* remove all default inner spacing                   */
+}
+
+
+/* ============================================================
+   3. BODY LAYOUT
+   ============================================================
+   The body is the outermost container — it fills the entire
+   viewport and uses flexbox in a column direction so that:
+
+     [topbar]           ← fixed height (50px), never grows
+     [view-library]     ← fills all remaining height (flex: 1)
+     [view-reader]      ← fills all remaining height (flex: 1)
+
+   Only one view is visible at a time (controlled by the .on
+   class in reader.js showView()). The other stays display:none.
+
+   overflow: hidden prevents scrollbars on the body itself.
+   Individual scrollable areas (like the library grid) have
+   their own overflow settings.
+   ============================================================ */
 body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: Georgia, serif;
-  height: 100vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
+  background:     var(--bg);       /* dark window background                    */
+  color:          var(--text);     /* default text color for everything inside  */
+  font-family:    Georgia, serif;  /* serif font for the editorial book feel     */
+  height:         100vh;           /* exactly the viewport height — no overflow */
+  overflow:       hidden;          /* scroll happens inside views, not the body */
+  display:        flex;            /* enable flexbox layout                      */
+  flex-direction: column;          /* stack children vertically                  */
 }
 
-/* ── TOPBAR ── */
+
+/* ============================================================
+   4. TOPBAR
+   ============================================================
+   The black bar at the very top of the app. Always visible.
+   Contains: SHELF logo | ← Library | Contents | + Add Book
+
+   flex-shrink: 0 prevents it from collapsing when the view
+   below it needs more space.
+
+   z-index: 200 keeps it above everything, including any
+   absolutely-positioned panels (like the display settings
+   dropdown in the reader toolbar, which is z-index: 100).
+   ============================================================ */
 #topbar {
-  height: 50px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  padding: 0 18px;
-  gap: 10px;
-  flex-shrink: 0;
-  z-index: 200;
+  height:       50px;              /* fixed height — never grows or shrinks     */
+  background:   var(--surface);    /* slightly lighter than --bg                */
+  border-bottom: 1px solid var(--border); /* hairline separator from content    */
+  display:      flex;              /* row layout for its children               */
+  align-items:  center;            /* vertically center all buttons             */
+  padding:      0 18px;            /* horizontal breathing room                 */
+  gap:          10px;              /* space between buttons                     */
+  flex-shrink:  0;                 /* never compress; always stays full height  */
+  z-index:      200;               /* above display panel (z:100) and sidebars  */
 }
 
+/* SHELF logo — the clickable "go home" element in the top-left.
+   margin-right: auto pushes everything else to the right.
+   It's a <span> with onclick="goLibrary()" so it acts as a button.
+   Opacity transition on hover gives a subtle press feedback. */
 .logo {
-  font-size: 17px;
-  letter-spacing: .1em;
-  color: var(--accent);
-  margin-right: auto;
-  transition: opacity .15s;
-  cursor: pointer;
+  font-size:      17px;
+  letter-spacing: .1em;           /* slightly spaced-out letters for a logo feel */
+  color:          var(--accent);  /* gold — the most prominent element in topbar */
+  margin-right:   auto;           /* KEY: pushes all other buttons to the right  */
+  transition:     opacity .15s;   /* smooth dim on hover                         */
+  cursor:         pointer;        /* shows hand cursor since it's a clickable span */
 }
-.logo:hover { opacity: .7; }
+.logo:hover {
+  opacity: .7; /* dims slightly to indicate it's interactive */
+}
 
+/* Topbar buttons — small bordered pills used for navigation controls.
+   Most are hidden in reader mode (see showView() in reader.js).
+   The active state (.on) shows an accent-tinted background. */
 .tbtn {
-  background: none;
-  border: 1px solid var(--border);
-  color: var(--muted);
-  padding: 5px 12px;
+  background:   none;                      /* transparent fill                  */
+  border:       1px solid var(--border);   /* subtle border                     */
+  color:        var(--muted);              /* dimmed — secondary items           */
+  padding:      5px 12px;
   border-radius: 4px;
-  cursor: pointer;
-  font-family: Georgia, serif;
-  font-size: 12px;
-  transition: all .15s;
-  white-space: nowrap;
+  cursor:       pointer;
+  font-family:  Georgia, serif;            /* match body font                   */
+  font-size:    12px;
+  transition:   all .15s;                  /* smooth color + border transitions */
+  white-space:  nowrap;                    /* never wrap button text            */
 }
-.tbtn:hover { border-color: var(--accent); color: var(--accent); }
-.tbtn.on    { border-color: var(--accent); color: var(--accent); background: rgba(201,170,112,.08); }
+.tbtn:hover {
+  border-color: var(--accent); /* gold border on hover                          */
+  color:        var(--accent); /* gold text on hover                            */
+}
+.tbtn.on {
+  /* Active state — used when TOC or Bookmarks sidebar is open.
+     Added/removed by toggleSb() in toc-bookmarks.js */
+  border-color: var(--accent);
+  color:        var(--accent);
+  background:   rgba(201,170,112,.08); /* very faint gold tint                 */
+}
 
-#back-btn, #toc-btn, #bm-btn, #layout-btn { display: none; }
-
-/* ── VIEWS ── */
-#view-library, #view-reader {
-  flex: 1;
-  overflow: hidden;
+/* These topbar buttons are hidden by default and shown/hidden
+   programmatically by showView() in reader.js depending on which
+   view is active. Having them in HTML but display:none means the
+   JS can simply toggle display without creating/destroying elements. */
+#back-btn,
+#toc-btn,
+#bm-btn,
+#layout-btn {
   display: none;
-  flex-direction: column;
 }
-#view-library.on, #view-reader.on { display: flex; }
 
-/* ── TOAST ── */
+
+/* ============================================================
+   5. VIEW CONTAINERS
+   ============================================================
+   The app has two full-height views: library and reader.
+   Only one is visible at a time. They sit inside body's flex
+   column and take up all remaining space after the topbar.
+
+   display: none  = hidden
+   display: flex  = visible (triggered by adding class .on)
+
+   This pattern avoids any page navigation or reloads — the app
+   is a single HTML page that swaps views by toggling CSS classes.
+   showView() in reader.js adds/removes .on.
+   ============================================================ */
+#view-library,
+#view-reader {
+  flex:           1;       /* fill all available height below the topbar  */
+  overflow:       hidden;  /* each view manages its own internal scrolling */
+  display:        none;    /* hidden by default                             */
+  flex-direction: column;  /* stack children (controls, grid, etc.) vertically */
+}
+
+/* Adding .on makes the view visible as a flex column.
+   Only one of these should have .on at any time. */
+#view-library.on,
+#view-reader.on {
+  display: flex;
+}
+
+
+/* ============================================================
+   6. TOAST NOTIFICATION
+   ============================================================
+   The small pop-up message at the bottom center of the screen.
+   Used for confirmations like "Bookmarked ★" or "Added: Title".
+
+   Starts invisible (opacity: 0) and slightly below its resting
+   position (translateY(10px)). When .on is added by toast() in
+   app.js, it fades in and slides up simultaneously.
+
+   pointer-events: none means it never blocks clicks even when visible.
+   position: fixed keeps it anchored to the viewport regardless of scroll.
+   z-index: 9999 ensures it's always on top of everything.
+   ============================================================ */
 #toast {
-  position: fixed;
-  bottom: 18px;
-  left: 50%;
-  transform: translateX(-50%) translateY(10px);
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  color: var(--text);
-  padding: 8px 16px;
-  border-radius: 5px;
-  font-size: 12px;
-  opacity: 0;
-  transition: all .22s;
-  pointer-events: none;
-  z-index: 9999;
+  position:       fixed;
+  bottom:         18px;
+  left:           50%;
+  transform:      translateX(-50%) translateY(10px); /* centered + slightly low */
+  background:     var(--surface2);
+  border:         1px solid var(--border);
+  color:          var(--text);
+  padding:        8px 16px;
+  border-radius:  5px;
+  font-size:      12px;
+  opacity:        0;               /* invisible by default                        */
+  transition:     all .22s;        /* fade + slide transition                     */
+  pointer-events: none;            /* never intercepts clicks                     */
+  z-index:        9999;            /* above everything, including modals          */
 }
-#toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-/* ── SCROLLBARS ── */
-::-webkit-scrollbar { width: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+/* When toast() in app.js adds the .on class, the toast
+   becomes visible and slides up to its resting position. */
+#toast.on {
+  opacity:   1;
+  transform: translateX(-50%) translateY(0); /* move up to final position */
+}
+
+
+/* ============================================================
+   7. SCROLLBAR STYLING  (WebKit only — Chrome, Edge, Safari)
+   ============================================================
+   Firefox uses a different scrollbar API (scrollbar-width / color).
+   These rules are silently ignored by Firefox, which uses its
+   default thin scrollbar — still acceptable.
+
+   ::-webkit-scrollbar         = the scrollbar track area itself
+   ::-webkit-scrollbar-track   = the background behind the thumb
+   ::-webkit-scrollbar-thumb   = the draggable part you grab
+
+   width: 5px makes scrollbars thin and unobtrusive.
+   border-radius: 3px rounds the thumb for a modern look.
+   ============================================================ */
+::-webkit-scrollbar {
+  width: 5px; /* applies to all scrollable areas in the app */
+}
+::-webkit-scrollbar-track {
+  background: transparent; /* invisible track — content shows through */
+}
+::-webkit-scrollbar-thumb {
+  background:    var(--border); /* same color as borders — subtle         */
+  border-radius: 3px;           /* rounded ends                           */
+}

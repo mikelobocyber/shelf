@@ -3,7 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Shelf — EPUB Reader</title>
+  <title>Shelf — EPUB & PDF Reader</title>
+
+  <!-- PWA manifest — enables "Add to Home Screen" on iPad and "Install" on desktop Chrome -->
+  <link rel="manifest" href="manifest.json">
+  <!-- iOS Safari requires these meta tags for standalone PWA behaviour -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Shelf">
+  <meta name="theme-color" content="#1c1b1a">
 
   <!-- Styles -->
   <link rel="stylesheet" href="css/base.css">
@@ -13,6 +21,9 @@
   <!-- epub.js dependencies -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
+
+  <!-- PDF.js — used for rendering PDF files -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
 <body>
 
@@ -21,7 +32,7 @@
      ══════════════════════════════════════════ -->
 <div id="topbar">
   <span class="logo" id="logo-btn" onclick="goLibrary()" title="Back to library">SHELF</span>
-  <!-- these topbar buttons are hidden in reader mode; controls live in the reader toolbar -->
+  <!-- hidden in reader mode — reader toolbar has its own controls -->
   <button class="tbtn" id="back-btn"   onclick="goLibrary()">← Library</button>
   <button class="tbtn" id="toc-btn"    onclick="toggleSb('toc')">Contents</button>
   <button class="tbtn" id="bm-btn"     onclick="toggleSb('bm')">Bookmarks</button>
@@ -29,7 +40,11 @@
   <button class="tbtn" id="add-btn"    onclick="document.getElementById('file-input').click()">+ Add Book</button>
 </div>
 
-<input type="file" id="file-input" accept=".epub" multiple>
+<!-- Accepts both EPUB and PDF files -->
+<input type="file" id="file-input" accept=".epub,.pdf" multiple>
+<!-- Folder input — used by "Add whole folder" and drag-a-folder.
+     webkitdirectory makes it pick an entire directory tree. -->
+<input type="file" id="folder-input" webkitdirectory multiple style="display:none;">
 
 <!-- ══════════════════════════════════════════
      LIBRARY VIEW
@@ -37,17 +52,57 @@
 <div id="view-library" class="on">
   <div id="lib-inner">
 
-    <div id="drop-zone" onclick="document.getElementById('file-input').click()">
-      <div style="font-size:32px; margin-bottom:10px">📚</div>
-      <p>Drop EPUB files here, or <span>browse to add</span></p>
-      <p style="font-size:11px; margin-top:5px; color:#444">
-        Books stay in your browser — nothing is uploaded
-      </p>
+    <!-- Folder status bar — always visible, content adapts to environment -->
+    <div id="folder-bar">
+      <span id="folder-icon">📂</span>
+      <span class="folder-label" id="folder-label">Checking folder support…</span>
+      <button class="folder-btn primary" id="folder-pick-btn"  onclick="pickFolder()"            style="display:none;">Set Library Folder</button>
+      <button class="folder-btn"         id="folder-scan-btn"  onclick="scanFolderForNewBooks()"  style="display:none;">Scan Now</button>
+      <button class="folder-btn"         id="folder-recon-btn" onclick="reconnectFolder()"        style="display:none;">Reconnect</button>
+      <button class="folder-btn danger"  id="folder-disc-btn"  onclick="disconnectFolder()"       style="display:none;">Disconnect</button>
+      <!-- Shown only on file:// — explains how to enable folder sync -->
+      <span id="folder-hint" style="display:none;">
+        <a class="folder-hint-link" onclick="_showFolderHelp()" href="#">How to enable →</a>
+      </span>
     </div>
 
-    <div class="lib-head">Your Library</div>
+    <!-- Drop zone — accepts individual files OR a whole folder dragged in -->
+    <div id="drop-zone" onclick="document.getElementById('file-input').click()">
+      <div style="font-size:32px; margin-bottom:10px">📚</div>
+      <p>Drop <strong>EPUB</strong> or <strong>PDF</strong> files here, or <span>browse to add</span></p>
+      <p style="font-size:11px; margin-top:4px; color:#666">You can also drag an entire folder of books onto this area</p>
+      <p style="font-size:11px; margin-top:2px; color:#555">Everything stays in your browser — nothing is uploaded</p>
+    </div>
+
+    <!-- Search + filter controls -->
+    <div id="lib-controls">
+      <div id="search-wrap">
+        <input id="search-input" type="text" placeholder="Search by title, author, genre…" autocomplete="off">
+      </div>
+      <select id="filter-genre"  class="lib-select"><option value="">All genres</option></select>
+      <select id="filter-author" class="lib-select"><option value="">All authors</option></select>
+      <select id="filter-type"   class="lib-select">
+        <option value="">All types</option>
+        <option value="epub">EPUB</option>
+        <option value="pdf">PDF</option>
+      </select>
+      <select id="sort-select" class="lib-select">
+        <option value="recent">Recently added</option>
+        <option value="title">Title A–Z</option>
+        <option value="author">Author A–Z</option>
+        <option value="genre">Genre</option>
+        <option value="progress">Reading progress</option>
+      </select>
+    </div>
+
+    <!-- Library heading + count -->
+    <div id="lib-heading-row">
+      <div class="lib-head">Your Library</div>
+      <div id="lib-count"></div>
+    </div>
+
     <div id="book-grid"></div>
-    <div id="empty">No books yet. Add an EPUB above to get started.</div>
+    <div id="empty">No books yet. Drop an EPUB or PDF above to get started.</div>
 
   </div>
 </div>
@@ -72,21 +127,36 @@
 
       <!-- Toolbar -->
       <div id="rtb">
-        <button class="rb"       onclick="prevPage()"       title="Previous page">←</button>
-        <button class="rb"       onclick="nextPage()"       title="Next page">→</button>
-        <button class="rb pill"  onclick="toggleSb('toc')"  title="Table of contents" id="toc-tb-btn">≡</button>
-        <button class="rb pill"  onclick="toggleSb('bm')"   title="Bookmarks"          id="bm-tb-btn">🔖</button>
+        <button class="rb"      onclick="prevPage()" title="Previous page">←</button>
+        <button class="rb"      onclick="nextPage()" title="Next page">→</button>
+        <button class="rb pill" onclick="toggleSb('toc')" title="Table of contents" id="toc-tb-btn">≡</button>
+        <button class="rb pill" onclick="toggleSb('bm')"  title="Bookmarks"         id="bm-tb-btn">🔖</button>
 
         <div id="r-title"></div>
 
-        <button class="rb"       onclick="adjFont(-2)"      title="Smaller text">A−</button>
-        <span   id="fs-num">100%</span>
-        <button class="rb"       onclick="adjFont(2)"       title="Larger text">A+</button>
+        <!-- EPUB font size controls -->
+        <span id="fs-wrap" style="display:flex;align-items:center;gap:4px;">
+          <button class="rb" onclick="adjFont(-2)" title="Smaller text">A−</button>
+          <span id="fs-num">100%</span>
+          <button class="rb" onclick="adjFont(2)"  title="Larger text">A+</button>
+        </span>
 
-        <button class="rb pill"  onclick="toggleBm()"       title="Bookmark this page" id="bm-star">☆</button>
-        <button class="rb pill"  onclick="toggleLayout()"   title="Single / double page"
+        <!-- PDF page controls (hidden for epub, shown as flex row for pdf by reader.js) -->
+        <div id="pdf-controls" style="display:none; align-items:center; gap:4px;">
+          <button class="rb" onclick="pdfZoomOut()" title="Zoom out">−</button>
+          <button class="rb" onclick="pdfZoomReset()" title="Reset zoom" style="font-size:11px;">100%</button>
+          <button class="rb" onclick="pdfZoomIn()"  title="Zoom in">+</button>
+          <span style="width:1px;height:16px;background:rgba(0,0,0,.12);margin:0 2px;"></span>
+          <input  id="pdf-page-input" type="number" min="1"
+                  onchange="pdfGoToPage(this.value)"
+                  onkeydown="if(event.key==='Enter')pdfGoToPage(this.value)">
+          <span id="pdf-total">/ 0</span>
+        </div>
+
+        <button class="rb pill" onclick="toggleBm()"     title="Bookmark this page" id="bm-star">☆</button>
+        <button class="rb pill" onclick="toggleLayout()" title="Single / double page"
                 id="layout-tb-btn" style="font-size:12px; letter-spacing:.02em;">&#9633; &#9633;</button>
-        <button class="rb pill"  onclick="toggleDisp()"     title="Display settings"   id="disp-btn">☀</button>
+        <button class="rb pill" onclick="toggleDisp()"   title="Display settings"   id="disp-btn">☀</button>
 
         <!-- Display / theme panel -->
         <div id="disp-panel">
@@ -96,7 +166,6 @@
             <div class="tsw td"    onclick="setTheme('dk',this)" title="Dark">Aa</div>
             <div class="tsw ts"    onclick="setTheme('sp',this)" title="Sepia">Aa</div>
           </div>
-
           <span class="dp-sub">Font</span>
           <select id="font-sel" onchange="applyTheme()">
             <option value="Georgia, serif">Georgia</option>
@@ -106,7 +175,6 @@
             <option value="'Arial', sans-serif">Arial</option>
             <option value="'Verdana', sans-serif">Verdana</option>
           </select>
-
           <span class="dp-sub">Line spacing</span>
           <div class="lh-wrap">
             <input type="range" id="lh-sl" min="1.2" max="2.4" step="0.1" value="1.7"
@@ -117,14 +185,21 @@
       </div><!-- /#rtb -->
 
       <!-- EPUB stage -->
-      <div id="epub-stage">
+      <div id="epub-stage" style="display:none;">
         <button class="nav-arr" id="na-prev" onclick="prevPage()">‹</button>
         <div id="epub-viewer"></div>
         <button class="nav-arr" id="na-next" onclick="nextPage()">›</button>
-        <div id="loading">
-          <div class="spin"></div>
-          <div class="spin-txt">Opening book…</div>
-        </div>
+      </div>
+
+      <!-- PDF stage -->
+      <div id="pdf-stage" style="display:none;">
+        <div id="pdf-viewer"></div>
+      </div>
+
+      <!-- Shared loading overlay (sits on top of both stages) -->
+      <div id="loading" style="display:none;">
+        <div class="spin"></div>
+        <div class="spin-txt">Opening…</div>
       </div>
 
       <!-- Footer / progress -->
@@ -138,7 +213,8 @@
     </div><!-- /#reader-main -->
 
     <!-- Bookmarks sidebar (right) -->
-    <div class="sb" id="bm-sb" style="border-right:none; border-left:1px solid var(--border); order:3">
+    <div class="sb" id="bm-sb"
+         style="border-right:none; border-left:1px solid var(--border); order:3">
       <div class="sb-head">
         <span>Bookmarks</span>
         <button onclick="toggleSb('bm')">×</button>
@@ -149,14 +225,67 @@
   </div><!-- /#reader-wrap -->
 </div><!-- /#view-reader -->
 
+<!-- ══════════════════════════════════════════
+     METADATA MODAL
+     ══════════════════════════════════════════ -->
+<div id="meta-modal">
+  <div id="meta-box">
+    <h2>Edit Metadata</h2>
+
+    <div class="meta-field">
+      <label>Title</label>
+      <input id="meta-title" type="text" placeholder="Book title">
+    </div>
+    <div class="meta-field">
+      <label>Author</label>
+      <input id="meta-author" type="text" placeholder="Author name">
+    </div>
+    <div class="meta-field">
+      <label>Genre / Subject</label>
+      <input id="meta-genre" type="text" placeholder="e.g. History, Fiction, Philosophy">
+    </div>
+    <div class="meta-field">
+      <label>Publication date</label>
+      <input id="meta-pubdate" type="text" placeholder="e.g. 2021 or 2021-03-15">
+    </div>
+    <div class="meta-field">
+      <label>Tags</label>
+      <input id="meta-tags" type="text" placeholder="comma-separated, e.g. stoicism, ROTC, leadership">
+      <span class="meta-hint">Separate tags with commas. Tags appear on the card and are searchable.</span>
+    </div>
+
+    <div id="meta-actions">
+      <button class="meta-btn"         onclick="closeMetaModal()">Cancel</button>
+      <button class="meta-btn primary" onclick="saveMetaModal()">Save</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
-<!-- Scripts — load order matters: db → library → reader → theme → toc-bookmarks → app -->
+<!-- Remove confirmation dialog — avoids browser confirm() which can
+     cause event-timing issues with async card click handlers -->
+<div id="confirm-modal">
+  <div id="confirm-box">
+    <p id="confirm-msg"></p>
+    <div id="confirm-actions">
+      <button class="meta-btn"         id="confirm-no">Cancel</button>
+      <button class="meta-btn danger-btn" id="confirm-yes">Remove</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SCRIPTS
+     Load order matters:
+       db → library → reader → theme → toc-bookmarks → app
+     ══════════════════════════════════════════ -->
 <script src="js/db.js"></script>
 <script src="js/library.js"></script>
 <script src="js/reader.js"></script>
 <script src="js/theme.js"></script>
 <script src="js/toc-bookmarks.js"></script>
+<script src="js/shelf-folder.js"></script>
 <script src="js/app.js"></script>
 
 </body>

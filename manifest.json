@@ -1,0 +1,27 @@
+{
+  "name": "Shelf — EPUB & PDF Reader",
+  "short_name": "Shelf",
+  "description": "A fully local EPUB and PDF reader. Your books stay on your device.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#111010",
+  "theme_color": "#1c1b1a",
+  "categories": ["books", "education", "utilities"],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "prefer_related_applications": false
+}
